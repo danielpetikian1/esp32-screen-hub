@@ -1,0 +1,23 @@
+menu "WiFi Configuration"
+
+config WIFI_SSID
+    string "WiFi SSID"
+    default ""
+
+config WIFI_PASSWORD
+    string "WiFi Password"
+    default ""
+
+endmenu
+
+menu "Location Configuration"
+
+config LOCATION_LATITUDE
+    string "Latitude (decimal degrees)"
+    default "37.8012"
+
+config LOCATION_LONGITUDE
+    string "Longitude (decimal degrees)"
+    default "-122.2695"
+
+endmenu

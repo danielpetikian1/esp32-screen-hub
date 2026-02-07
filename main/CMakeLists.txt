@@ -1,0 +1,32 @@
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "net/net_manager.c"
+        "http/http_service.c"
+        "weather/weather_task.c"
+        "i2c_bus/i2c_bus.c"
+        "sht40/sht40.c"
+        "i2c_utils/i2c_utils.c"
+        "power_aw9523/power_aw9523.c"
+        "port_a_i2c/port_a_i2c.c"
+    INCLUDE_DIRS
+        "."
+        "common"
+        "net"
+        "http"
+        "weather"
+        "i2c_bus"
+        "sht40"
+        "i2c_utils"
+        "power_aw9523"
+        "port_a_i2c"
+    REQUIRES
+        esp_wifi
+        esp_event
+        esp_netif
+        nvs_flash
+        esp_http_client
+        driver
+        esp_driver_gpio
+        m5stack_core_s3
+)
