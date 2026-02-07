@@ -1,5 +1,5 @@
 #pragma once
-#include "freertos/FreeRTOS.h"      // MUST be first
+#include "freertos/FreeRTOS.h" // MUST be first
 #include "freertos/event_groups.h"
 
 #ifdef __cplusplus
