@@ -19,9 +19,7 @@ typedef struct {
 	float humidity_rh;
 } sht40_reading_t;
 
-esp_err_t sht40_init(i2c_master_bus_handle_t bus, uint8_t addr, sht40_t *out);
-esp_err_t sht40_read(const sht40_t *dev, sht40_reading_t *out);
-void sht40_deinit(sht40_t *dev);
+esp_err_t sht40_read(const i2c_master_dev_handle_t *dev, sht40_reading_t *out);
 
 #ifdef __cplusplus
 }

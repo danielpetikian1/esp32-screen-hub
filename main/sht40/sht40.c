@@ -18,33 +18,12 @@ static uint8_t crc8_sensirion(const uint8_t *data, int len) {
 	return crc;
 }
 
-esp_err_t sht40_init(i2c_master_bus_handle_t bus, uint8_t addr, sht40_t *out) {
-	if (!bus || !out)
-		return ESP_ERR_INVALID_ARG;
-
-	i2c_device_config_t cfg = {
-		.dev_addr_length = I2C_ADDR_BIT_LEN_7,
-		.device_address = addr, // 0x44 or 0x45
-		.scl_speed_hz = 400000, // 100k is safest; 400k also ok
-	};
-
-	out->addr = addr;
-	return i2c_master_bus_add_device(bus, &cfg, &out->dev);
-}
-
-void sht40_deinit(sht40_t *dev) {
-	if (!dev || !dev->dev)
-		return;
-	i2c_master_bus_rm_device(dev->dev);
-	dev->dev = NULL;
-}
-
-esp_err_t sht40_read(const sht40_t *dev, sht40_reading_t *out) {
-	if (!dev || !dev->dev || !out)
+esp_err_t sht40_read(const i2c_master_dev_handle_t *dev, sht40_reading_t *out) {
+	if (!dev || !dev || !out)
 		return ESP_ERR_INVALID_ARG;
 
 	const uint8_t cmd = SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT;
-	esp_err_t err = i2c_master_transmit(dev->dev, &cmd, 1, 200);
+	esp_err_t err = i2c_master_transmit(*dev, &cmd, 1, 200);
 	if (err != ESP_OK)
 		return err;
 
@@ -55,7 +34,7 @@ esp_err_t sht40_read(const sht40_t *dev, sht40_reading_t *out) {
 
 	// Try multiple times because the sensor can NACK while busy
 	for (int i = 0; i < 8; i++) {
-		err = i2c_master_receive(dev->dev, buf, sizeof(buf), 200);
+		err = i2c_master_receive(*dev, buf, sizeof(buf), 200);
 		if (err == ESP_OK)
 			break;
 		vTaskDelay(pdMS_TO_TICKS(3));

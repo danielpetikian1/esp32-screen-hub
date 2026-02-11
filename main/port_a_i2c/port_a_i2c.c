@@ -44,3 +44,13 @@ esp_err_t port_a_add_device(port_a_i2c_t *ctx, uint8_t addr, uint32_t scl_hz,
 	};
 	return i2c_master_bus_add_device(ctx->bus, &dev_cfg, out_dev);
 }
+
+
+esp_err_t port_a_rem_device(const i2c_master_dev_handle_t *dev) {
+	if (!dev) {
+		return ESP_ERR_INVALID_ARG;
+    }
+	esp_err_t err = i2c_master_bus_rm_device(*dev);
+	dev = NULL;
+    return err;
+}

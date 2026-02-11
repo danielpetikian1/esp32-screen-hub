@@ -54,9 +54,9 @@ void app_main(void) {
 	i2c_master_dev_handle_t sht40 = NULL;
 	ESP_ERROR_CHECK(port_a_add_device(&porta, 0x44, 100000, &sht40));
 
-	i2c_master_dev_handle_t other = NULL;
+	i2c_master_dev_handle_t sht_dev = NULL;
 	ESP_ERROR_CHECK(
-		port_a_add_device(&porta, 0x40, 100000, &other)); // example addr
+		port_a_add_device(&porta, 0x44, 400000, &sht_dev)); // example addr
 
 	// Optional: probe addresses before committing
 	// ESP_LOGI(TAG, "probe 0x44: %s", esp_err_to_name(i2c_probe_addr(porta.bus,
@@ -69,12 +69,12 @@ void app_main(void) {
 	http_service_start();
 	weather_task_start();
 
-	sht40_t sht = {0};
-	ESP_ERROR_CHECK(sht40_init(porta.bus, 0x44, &sht)); // try 0x45 if needed
+	// sht40_t sht = {0};
+	// ESP_ERROR_CHECK(sht40_init(porta.bus, 0x44, &sht)); // try 0x45 if needed
 
 	while (1) {
 		sht40_reading_t r;
-		esp_err_t err = sht40_read(&sht, &r);
+		esp_err_t err = sht40_read(&sht_dev, &r);
 		if (err == ESP_OK) {
 			ESP_LOGI(TAG, "SHT40: %.2f C, %.2f %%RH", r.temperature_c,
 					 r.humidity_rh);
