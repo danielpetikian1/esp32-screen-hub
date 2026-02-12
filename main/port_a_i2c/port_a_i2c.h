@@ -17,6 +17,8 @@ void port_a_i2c_deinit(port_a_i2c_t *ctx);
 esp_err_t port_a_add_device(port_a_i2c_t *ctx, uint8_t addr, uint32_t scl_hz,
 							i2c_master_dev_handle_t *out_dev);
 esp_err_t port_a_rem_device(const i2c_master_dev_handle_t *dev);
+esp_err_t port_a_i2c_read(const i2c_master_dev_handle_t *dev, uint8_t *buf,
+				   size_t buf_len, const uint8_t cmd);
 
 #ifdef __cplusplus
 }

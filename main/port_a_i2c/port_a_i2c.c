@@ -1,8 +1,16 @@
 #include "port_a_i2c.h"
+#include "esp_check.h"
+#include "esp_err.h"
+#include "esp_rom_sys.h" // esp_rom_delay_us
+#include "freertos/FreeRTOS.h"
 #include <string.h>
+
+// todo: clean up includes
 
 #define PORTA_SDA_GPIO 2
 #define PORTA_SCL_GPIO 1
+
+#define SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT 0xFD
 
 esp_err_t port_a_i2c_init(port_a_i2c_t *out) {
 	if (!out)
@@ -45,12 +53,36 @@ esp_err_t port_a_add_device(port_a_i2c_t *ctx, uint8_t addr, uint32_t scl_hz,
 	return i2c_master_bus_add_device(ctx->bus, &dev_cfg, out_dev);
 }
 
-
 esp_err_t port_a_rem_device(const i2c_master_dev_handle_t *dev) {
 	if (!dev) {
 		return ESP_ERR_INVALID_ARG;
-    }
+	}
 	esp_err_t err = i2c_master_bus_rm_device(*dev);
 	dev = NULL;
-    return err;
+	return err;
+}
+
+esp_err_t port_a_i2c_read(const i2c_master_dev_handle_t *dev, uint8_t *buf,
+						  size_t buf_len, const uint8_t cmd) {
+	if (!dev || !dev || !buf)
+		return ESP_ERR_INVALID_ARG;
+
+	esp_err_t err = i2c_master_transmit(*dev, &cmd, 1, 200);
+	if (err != ESP_OK)
+		return err;
+
+	// Give it a minimum time
+	vTaskDelay(pdMS_TO_TICKS(25));
+
+	// Try multiple times because the sensor can NACK while busy
+	for (int i = 0; i < 8; i++) {
+		err = i2c_master_receive(*dev, buf, buf_len, 200);
+		if (err == ESP_OK)
+			break;
+		vTaskDelay(pdMS_TO_TICKS(3));
+	}
+	if (err != ESP_OK)
+		return err;
+
+	return ESP_OK;
 }

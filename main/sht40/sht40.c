@@ -1,6 +1,7 @@
 #include "sht40.h"
 #include "esp_check.h"
 #include "esp_rom_sys.h" // esp_rom_delay_us
+#include "port_a_i2c.h"
 
 #define SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT 0xFD
 
@@ -19,26 +20,14 @@ static uint8_t crc8_sensirion(const uint8_t *data, int len) {
 }
 
 esp_err_t sht40_read(const i2c_master_dev_handle_t *dev, sht40_reading_t *out) {
+
+	uint8_t buf[6];
 	if (!dev || !dev || !out)
 		return ESP_ERR_INVALID_ARG;
 
 	const uint8_t cmd = SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT;
-	esp_err_t err = i2c_master_transmit(*dev, &cmd, 1, 200);
-	if (err != ESP_OK)
-		return err;
 
-	// Give it a minimum time
-	vTaskDelay(pdMS_TO_TICKS(25));
-
-	uint8_t buf[6];
-
-	// Try multiple times because the sensor can NACK while busy
-	for (int i = 0; i < 8; i++) {
-		err = i2c_master_receive(*dev, buf, sizeof(buf), 200);
-		if (err == ESP_OK)
-			break;
-		vTaskDelay(pdMS_TO_TICKS(3));
-	}
+	esp_err_t err = port_a_i2c_read(dev, buf, 6, cmd);
 	if (err != ESP_OK)
 		return err;
 
