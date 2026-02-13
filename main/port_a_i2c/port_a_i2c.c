@@ -1,86 +1,120 @@
 #include "port_a_i2c.h"
 #include "esp_check.h"
 #include "esp_err.h"
-#include "esp_rom_sys.h" // esp_rom_delay_us
+#include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include <string.h>
 
-// todo: clean up includes
-
+// Port A I2C pin configuration (CoreS3 Grove)
 #define PORTA_SDA_GPIO 2
 #define PORTA_SCL_GPIO 1
 
+// SHT40 high precision measurement command (no heater)
 #define SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT 0xFD
 
-esp_err_t port_a_i2c_init(port_a_i2c_t *out) {
-	if (!out)
-		return ESP_ERR_INVALID_ARG;
-	memset(out, 0, sizeof(*out));
 
+/* -------------------------------------------------------------------------- */
+/* Port A Bus Initialization                                                  */
+/* -------------------------------------------------------------------------- */
+
+esp_err_t port_a_i2c_init(i2c_master_bus_handle_t *bus)
+{
+	if (!bus) {
+		return ESP_ERR_INVALID_ARG;
+	}
+
+	// Clear caller handle before allocation
+	*bus = NULL;
+
+	// Configure I2C master bus for Port A (GPIO2/1)
 	i2c_master_bus_config_t cfg = {
-		.i2c_port =
-			-1, // let driver pick a port (IDF 5.x new driver supports this)
+		.i2c_port = -1,  // Auto-select port (IDF 5.x)
 		.sda_io_num = PORTA_SDA_GPIO,
 		.scl_io_num = PORTA_SCL_GPIO,
 		.clk_source = I2C_CLK_SRC_DEFAULT,
 		.glitch_ignore_cnt = 7,
 		.intr_priority = 0,
 		.trans_queue_depth = 0,
-		.flags.enable_internal_pullup =
-			0, // Port A should use external pullups on the bus
+		// Port A relies on external pull-ups (Grove bus)
+		.flags.enable_internal_pullup = 0,
 	};
 
-	return i2c_new_master_bus(&cfg, &out->bus);
+	return i2c_new_master_bus(&cfg, bus);
 }
 
-void port_a_i2c_deinit(port_a_i2c_t *ctx) {
-	if (!ctx || !ctx->bus)
+
+void port_a_i2c_deinit(i2c_master_bus_handle_t bus)
+{
+	// Safe no-op if bus is NULL
+	if (!bus)
 		return;
-	i2c_del_master_bus(ctx->bus);
-	ctx->bus = NULL;
+
+	i2c_del_master_bus(bus);
 }
 
-esp_err_t port_a_add_device(port_a_i2c_t *ctx, uint8_t addr, uint32_t scl_hz,
-							i2c_master_dev_handle_t *out_dev) {
-	if (!ctx || !ctx->bus || !out_dev)
+
+/* -------------------------------------------------------------------------- */
+/* Device Management                                                          */
+/* -------------------------------------------------------------------------- */
+
+esp_err_t port_a_add_device(i2c_master_bus_handle_t bus,
+							uint8_t addr,
+							uint32_t scl_hz,
+							i2c_master_dev_handle_t *out_dev)
+{
+	if (!bus)
 		return ESP_ERR_INVALID_ARG;
 
+	// Configure 7-bit I2C device
 	i2c_device_config_t dev_cfg = {
 		.dev_addr_length = I2C_ADDR_BIT_LEN_7,
 		.device_address = addr,
 		.scl_speed_hz = scl_hz,
 	};
-	return i2c_master_bus_add_device(ctx->bus, &dev_cfg, out_dev);
+
+	return i2c_master_bus_add_device(bus, &dev_cfg, out_dev);
 }
 
-esp_err_t port_a_rem_device(const i2c_master_dev_handle_t *dev) {
+
+esp_err_t port_a_rem_device(const i2c_master_dev_handle_t dev)
+{
 	if (!dev) {
 		return ESP_ERR_INVALID_ARG;
 	}
-	esp_err_t err = i2c_master_bus_rm_device(*dev);
-	dev = NULL;
-	return err;
+
+	return i2c_master_bus_rm_device(dev);
 }
 
-esp_err_t port_a_i2c_read(const i2c_master_dev_handle_t *dev, uint8_t *buf,
-						  size_t buf_len, const uint8_t cmd) {
-	if (!dev || !dev || !buf)
+
+/* -------------------------------------------------------------------------- */
+/* Transaction Helpers                                                        */
+/* -------------------------------------------------------------------------- */
+
+esp_err_t port_a_i2c_read(const i2c_master_dev_handle_t dev,
+						  uint8_t *buf,
+						  size_t buf_len,
+						  const uint8_t cmd)
+{
+	if (!dev || !buf)
 		return ESP_ERR_INVALID_ARG;
 
-	esp_err_t err = i2c_master_transmit(*dev, &cmd, 1, 200);
+	// Send command byte to trigger measurement/conversion
+	esp_err_t err = i2c_master_transmit(dev, &cmd, 1, 200);
 	if (err != ESP_OK)
 		return err;
 
-	// Give it a minimum time
+	// Allow device time to complete measurement (e.g., SHT40 ~20ms)
 	vTaskDelay(pdMS_TO_TICKS(25));
 
-	// Try multiple times because the sensor can NACK while busy
+	// Retry read in case device NACKs while busy
 	for (int i = 0; i < 8; i++) {
-		err = i2c_master_receive(*dev, buf, buf_len, 200);
+		err = i2c_master_receive(dev, buf, buf_len, 200);
 		if (err == ESP_OK)
 			break;
+
 		vTaskDelay(pdMS_TO_TICKS(3));
 	}
+
 	if (err != ESP_OK)
 		return err;
 

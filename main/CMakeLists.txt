@@ -4,10 +4,11 @@ idf_component_register(
         "net/net_manager.c"
         "http/http_service.c"
         "weather/weather_task.c"
-        "sht40/sht40.c"
+        "sht40/sht40_task.c"
         "i2c_utils/i2c_utils.c"
         "power_aw9523/power_aw9523.c"
         "port_a_i2c/port_a_i2c.c"
+        "port_a_i2c/port_a_i2c_service.c"
     INCLUDE_DIRS
         "."
         "common"
