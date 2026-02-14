@@ -45,11 +45,12 @@ static void port_a_i2c_owner_task(void *arg) {
 			};
 
 			/* Execute transaction: command -> delay -> read bytes */
-			resp.err =
-				port_a_i2c_read(req.dev, resp.data, sizeof(resp.data), req.cmd);
+			resp.err = port_a_i2c_read(&req, &resp);
 
 			/* Return response if the requester provided a reply queue */
-			(void)xQueueSend(req.reply_queue, &resp, pdMS_TO_TICKS(50));
+			if (req.reply_queue) {
+				(void)xQueueSend(req.reply_queue, &resp, pdMS_TO_TICKS(50));
+			}
 		}
 	}
 }

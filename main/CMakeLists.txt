@@ -9,6 +9,8 @@ idf_component_register(
         "power_aw9523/power_aw9523.c"
         "port_a_i2c/port_a_i2c.c"
         "port_a_i2c/port_a_i2c_service.c"
+        "sgp30/sgp30_task.c"
+        "common/sensirion_utils.c"
     INCLUDE_DIRS
         "."
         "common"
@@ -19,6 +21,7 @@ idf_component_register(
         "i2c_utils"
         "power_aw9523"
         "port_a_i2c"
+        "sgp30"
     REQUIRES
         esp_wifi
         esp_event

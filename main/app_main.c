@@ -13,10 +13,14 @@
 #include "port_a_i2c.h"
 #include "port_a_i2c_service.h"
 #include "power_aw9523.h"
+#include "sgp30_task.h"
 #include "sht40_task.h"
 #include "weather_task.h"
 
 #define TAG "main"
+
+#define SHT40_ADDR 0x44
+#define SGP30_ADDR 0x58
 
 void app_main(void) {
 	// --- System init for Wi-Fi ---
@@ -50,12 +54,15 @@ void app_main(void) {
 			 gpio_get_level(2));
 
 	i2c_master_dev_handle_t sht_dev = NULL;
-	ESP_ERROR_CHECK(
-		port_a_add_device(porta, 0x44, 400000, &sht_dev)); // example addr
+	ESP_ERROR_CHECK(port_a_add_device(porta, SHT40_ADDR, 400000, &sht_dev));
+
+	i2c_master_dev_handle_t sgp_dev = NULL;
+	ESP_ERROR_CHECK(port_a_add_device(porta, SGP30_ADDR, 100000, &sgp_dev));
 
 	net_manager_start();
 	http_service_start();
 	weather_task_start();
 	port_a_i2c_service_start();
 	sht40_task_start(sht_dev);
+	sgp30_task_start(sgp_dev);
 }

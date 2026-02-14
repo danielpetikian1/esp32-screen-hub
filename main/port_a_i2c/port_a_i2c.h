@@ -2,6 +2,8 @@
 #include "driver/i2c_master.h"
 #include "esp_err.h"
 
+#include "port_a_i2c_types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,8 +87,7 @@ esp_err_t port_a_rem_device(i2c_master_dev_handle_t dev);
  *      - ESP_ERR_INVALID_ARG if parameters are invalid
  *      - Other ESP-IDF error codes from transmit/receive operations
  */
-esp_err_t port_a_i2c_read(i2c_master_dev_handle_t dev, uint8_t *buf,
-						  size_t buf_len, uint8_t cmd);
+esp_err_t port_a_i2c_read(const port_a_i2c_req_t *req, port_a_i2c_resp_t *out);
 
 #ifdef __cplusplus
 }
