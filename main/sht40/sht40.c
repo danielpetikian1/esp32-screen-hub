@@ -13,7 +13,8 @@
 #include "port_a_i2c_service.h" // port_a_i2c_service_queue(), req/resp types
 #include "port_a_i2c_types.h"
 
-#include "sensirion_utils.h" // sensirion_crc8()
+#include "port_a_i2c_readings.h" // readings_update_sht40
+#include "sensirion_utils.h"	 // sensirion_crc8()
 
 // SHT40 "measure high precision, no heater" command (8-bit)
 #define SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT 0xFD
@@ -64,6 +65,8 @@ static esp_err_t process_buf(const uint8_t buf[6]) {
 
 	// Report decoded measurement
 	ESP_LOGI(TAG, "Temperature: %.2f C, %.2f %%RH", temperature_c, humidity_rh);
+	uint32_t now_ms = esp_log_timestamp();
+	readings_update_sht40(temperature_c, humidity_rh, now_ms);
 
 	return ESP_OK;
 }

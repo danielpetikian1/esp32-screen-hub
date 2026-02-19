@@ -13,7 +13,8 @@
 #include "port_a_i2c_service.h" // port_a_i2c_service_queue(), req/resp types
 #include "port_a_i2c_types.h"
 
-#include "sensirion_utils.h" // sensirion_crc8()
+#include "port_a_i2c_readings.h" // readings_update_sgp30
+#include "sensirion_utils.h"	 // sensirion_crc8()
 
 // Logging tag for this module/task
 #define TAG "sgp30"
@@ -179,6 +180,8 @@ static void sgp30_task(void *arg) {
 					ESP_LOGI(TAG,
 							 "eCO2: %" PRIu16 " ppm, TVOC: %" PRIu16 " ppb",
 							 eco2, tvoc);
+					uint32_t now_ms = esp_log_timestamp();
+					readings_update_sgp30(eco2, tvoc, now_ms);
 				}
 			}
 		} else {

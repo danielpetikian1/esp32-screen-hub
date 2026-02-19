@@ -11,10 +11,11 @@
 #include "i2c_utils.h"
 #include "net_manager.h"
 #include "port_a_i2c.h"
+#include "port_a_i2c_readings.h"
 #include "port_a_i2c_service.h"
 #include "power_aw9523.h"
-#include "sgp30_task.h"
-#include "sht40_task.h"
+#include "sgp30.h"
+#include "sht40.h"
 #include "weather_task.h"
 
 #define TAG "main"
@@ -59,6 +60,7 @@ void app_main(void) {
 	i2c_master_dev_handle_t sgp_dev = NULL;
 	ESP_ERROR_CHECK(port_a_add_device(porta, SGP30_ADDR, 100000, &sgp_dev));
 
+	readings_store_init();
 	net_manager_start();
 	http_service_start();
 	weather_task_start();
