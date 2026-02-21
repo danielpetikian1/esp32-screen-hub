@@ -21,3 +21,17 @@ config LOCATION_LONGITUDE
     default "-122.2695"
 
 endmenu
+
+menu "Time Configuration"
+
+config TIMEZONE
+    string "POSIX Timezone string"
+    default "PST8PDT,M3.2.0,M11.1.0"
+    help
+        POSIX timezone string used by SNTP.
+        Examples:
+          Pacific: PST8PDT,M3.2.0,M11.1.0
+          Eastern: EST5EDT,M3.2.0,M11.1.0
+          UTC:      UTC0
+
+endmenu

@@ -1,7 +1,7 @@
+#include "port_a_i2c_readings.h"
 #include "esp_check.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "port_a_i2c_readings.h"
 
 // Internal mutex protecting shared state
 static SemaphoreHandle_t s_mu = NULL;

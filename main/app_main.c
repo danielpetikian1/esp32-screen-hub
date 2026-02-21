@@ -5,6 +5,7 @@
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_private/i2c_platform.h"
+#include "lvgl.h"
 #include "nvs_flash.h"
 
 #include "http_service.h"
@@ -16,6 +17,7 @@
 #include "power_aw9523.h"
 #include "sgp30.h"
 #include "sht40.h"
+#include "sntp.h"
 #include "weather_task.h"
 
 #define TAG "main"
@@ -62,9 +64,45 @@ void app_main(void) {
 
 	readings_store_init();
 	net_manager_start();
+	sntp_service_init_and_start(CONFIG_TIMEZONE);
+	sntp_service_wait_for_sync(pdMS_TO_TICKS(5000));
+
 	http_service_start();
 	weather_task_start();
 	port_a_i2c_service_start();
 	sht40_task_start(sht_dev);
 	sgp30_task_start(sgp_dev);
+	lv_display_t *disp = bsp_display_start();
+	assert(disp);
+	bsp_display_brightness_set(100);
+
+	bsp_display_lock(0);
+	lv_obj_t *label = lv_label_create(lv_scr_act());
+	lv_obj_center(label);
+	bsp_display_unlock();
+
+	readings_snapshot_t snapshot = {0};
+	char buf[96];
+
+	for (;;) {
+		readings_get_snapshot(&snapshot);
+
+		char tbuf[16];
+		sntp_service_format_local_time("%H:%M:%S", tbuf, sizeof(tbuf));
+
+		snprintf(buf, sizeof(buf),
+				 "Time: %s\n"
+				 "Temp: %.2f C\n"
+				 "Humidity: %.2f%%",
+				 tbuf, snapshot.temp_c, snapshot.rh_percent);
+
+		bsp_display_lock(0);
+
+		lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
+		lv_label_set_text(label, buf);
+
+		bsp_display_unlock();
+
+		vTaskDelay(pdMS_TO_TICKS(500));
+	}
 }
