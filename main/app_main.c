@@ -18,6 +18,7 @@
 #include "sgp30.h"
 #include "sht40.h"
 #include "sntp.h"
+#include "ui.h"
 #include "weather_task.h"
 
 #define TAG "main"
@@ -72,36 +73,23 @@ void app_main(void) {
 	port_a_i2c_service_start();
 	sht40_task_start(sht_dev);
 	sgp30_task_start(sgp_dev);
-	lv_display_t *disp = bsp_display_start();
+	lv_disp_t *disp = bsp_display_start();
 	assert(disp);
 	bsp_display_brightness_set(100);
 
-	bsp_display_lock(0);
-	lv_obj_t *label = lv_label_create(lv_scr_act());
-	lv_obj_center(label);
-	bsp_display_unlock();
-
+	ESP_ERROR_CHECK(ui_init(disp));
 	readings_snapshot_t snapshot = {0};
-	char buf[96];
-
+	char time_str[9];
 	for (;;) {
+		/* Format local time into HH:MM:SS */
+		sntp_service_format_local_time("%H:%M:%S", time_str, sizeof(time_str));
+
+		/* Update time labels (dashboard + clock) */
+		ui_set_time_str(time_str);
+
+		/* Update sensor widgets */
 		readings_get_snapshot(&snapshot);
-
-		char tbuf[16];
-		sntp_service_format_local_time("%H:%M:%S", tbuf, sizeof(tbuf));
-
-		snprintf(buf, sizeof(buf),
-				 "Time: %s\n"
-				 "Temp: %.2f C\n"
-				 "Humidity: %.2f%%",
-				 tbuf, snapshot.temp_c, snapshot.rh_percent);
-
-		bsp_display_lock(0);
-
-		lv_obj_set_style_text_color(label, lv_color_black(), LV_PART_MAIN);
-		lv_label_set_text(label, buf);
-
-		bsp_display_unlock();
+		ui_update_readings(&snapshot);
 
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}

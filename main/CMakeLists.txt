@@ -13,6 +13,7 @@ idf_component_register(
         "sgp30/sgp30.c"
         "sntp/sntp.c"
         "common/sensirion_utils.c"
+        "ui/ui.c"
     INCLUDE_DIRS
         "."
         "common"
@@ -25,6 +26,7 @@ idf_component_register(
         "port_a_i2c"
         "sgp30"
         "sntp"
+        "ui"
     REQUIRES
         esp_wifi
         esp_event
