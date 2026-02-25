@@ -11,7 +11,7 @@
 /* -------------------------------------------------------------------------- */
 
 /* Port A service request queue (created on first start). */
-static QueueHandle_t port_a_q; // static queue for port A
+static QueueHandle_t port_q; // static queue for port A
 
 /* -------------------------------------------------------------------------- */
 /* Internal Owner Task                                                        */
@@ -30,22 +30,22 @@ static QueueHandle_t port_a_q; // static queue for port A
  *    if you want strict single-owner arbitration.
  *  - If reply_queue is NULL, the response is effectively fire-and-forget.
  */
-static void port_a_i2c_owner_task(void *arg) {
+static void port_i2c_owner_task(void *arg) {
 
 	/* arg currently unused (common FreeRTOS pattern) */
-	port_a_i2c_req_t req;
+	port_i2c_req_t req;
 	for (;;) {
 		/* Block indefinitely until a request arrives */
-		if (xQueueReceive(port_a_q, &req, portMAX_DELAY) == pdTRUE) {
+		if (xQueueReceive(port_q, &req, portMAX_DELAY) == pdTRUE) {
 
 			/* Populate response with correlation ID and pessimistic default */
-			port_a_i2c_resp_t resp = {
+			port_i2c_resp_t resp = {
 				.request_id = req.request_id,
 				.err = ESP_FAIL,
 			};
 
 			/* Execute transaction: command -> delay -> read bytes */
-			resp.err = port_a_i2c_read(&req, &resp);
+			resp.err = port_i2c_xfer(&req, &resp);
 
 			/* Return response if the requester provided a reply queue */
 			if (req.reply_queue) {
@@ -59,16 +59,16 @@ static void port_a_i2c_owner_task(void *arg) {
 /* Public Service API                                                         */
 /* -------------------------------------------------------------------------- */
 
-void port_a_i2c_service_start(void) {
+void port_i2c_service_start(void) {
 	/* Lazy-create request queue on first start */
-	if (!port_a_q) {
+	if (!port_q) {
 		/* Depth chosen for expected request burst; tune as needed */
-		port_a_q = xQueueCreate(8, sizeof(port_a_i2c_req_t));
+		port_q = xQueueCreate(8, sizeof(port_i2c_req_t));
 	}
 
 	/* Dedicated owner task pinned to core 1 (tune stack/priority as needed) */
-	xTaskCreatePinnedToCore(port_a_i2c_owner_task, "port_a_i2c_service", 4096,
-							NULL, 6, NULL, 1);
+	xTaskCreatePinnedToCore(port_i2c_owner_task, "port_i2c_service", 4096, NULL,
+							6, NULL, 1);
 }
 
-QueueHandle_t port_a_i2c_service_queue(void) { return port_a_q; }
+QueueHandle_t port_i2c_service_queue(void) { return port_q; }

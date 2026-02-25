@@ -10,7 +10,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "port_a_i2c_service.h" // port_a_i2c_service_queue(), req/resp types
+#include "port_a_i2c_service.h" // port_i2c_service_queue(), req/resp types
 #include "port_a_i2c_types.h"
 
 #include "port_a_i2c_readings.h" // readings_update_sgp30
@@ -84,14 +84,14 @@ static esp_err_t sgp30_process_iaq_buf(const uint8_t buf[6], uint16_t *eco2_ppm,
  *    where the SGP30 may NACK reads.
  */
 static void sgp30_task(void *arg) {
-	// Device handle (created by port_a_add_device) passed in via task arg
+	// Device handle (created by port_add_device) passed in via task arg
 	i2c_master_dev_handle_t dev = (i2c_master_dev_handle_t)arg;
 
 	// Port A service request queue (shared by all Port A requesters)
-	QueueHandle_t port_a_q = port_a_i2c_service_queue();
+	QueueHandle_t port_q = port_i2c_service_queue();
 
 	// Per-task reply queue: owner sends exactly one response per request
-	QueueHandle_t reply_q = xQueueCreate(2, sizeof(port_a_i2c_resp_t));
+	QueueHandle_t reply_q = xQueueCreate(2, sizeof(port_i2c_resp_t));
 	if (!reply_q) {
 		ESP_LOGE(TAG, "Failed to create reply queue");
 		vTaskDelete(NULL);
@@ -105,7 +105,7 @@ static void sgp30_task(void *arg) {
 	// -------------------------------------------------------------------------
 	{
 		// IAQ init is a write-only command (no readback)
-		port_a_i2c_req_t init_req = {
+		port_i2c_req_t init_req = {
 			.request_id = ++rid,
 			.sensor = SGP30,
 			.cmd = SGP30_CMD_IAQ_INIT,
@@ -117,10 +117,10 @@ static void sgp30_task(void *arg) {
 		};
 
 		// Submit init request to Port A owner
-		(void)xQueueSend(port_a_q, &init_req, portMAX_DELAY);
+		(void)xQueueSend(port_q, &init_req, portMAX_DELAY);
 
 		// Wait for completion status from owner task
-		port_a_i2c_resp_t init_resp = {0};
+		port_i2c_resp_t init_resp = {0};
 		if (xQueueReceive(reply_q, &init_resp, pdMS_TO_TICKS(500)) == pdTRUE) {
 			if (init_resp.err != ESP_OK) {
 				ESP_LOGW(TAG, "IAQ init failed id=%" PRIu32 ": %s",
@@ -147,7 +147,7 @@ static void sgp30_task(void *arg) {
 
 	for (;;) {
 		// Measure IAQ is command + 6-byte response (two words + CRCs)
-		port_a_i2c_req_t req = {
+		port_i2c_req_t req = {
 			.request_id = ++rid,
 			.sensor = SGP30,
 			.cmd = SGP30_CMD_MEASURE_IAQ,
@@ -161,10 +161,10 @@ static void sgp30_task(void *arg) {
 		};
 
 		// Submit request to the Port A owner task
-		(void)xQueueSend(port_a_q, &req, portMAX_DELAY);
+		(void)xQueueSend(port_q, &req, portMAX_DELAY);
 
 		// Wait for response (I2C operation + optional retries in owner)
-		port_a_i2c_resp_t resp = {0};
+		port_i2c_resp_t resp = {0};
 		if (xQueueReceive(reply_q, &resp, pdMS_TO_TICKS(800)) == pdTRUE) {
 			// Transport-level failure (NACK/timeout/etc.)
 			if (resp.err != ESP_OK) {

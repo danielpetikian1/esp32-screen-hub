@@ -52,7 +52,7 @@ typedef struct {
 
 	/** Optional reply queue for exactly one response. */
 	QueueHandle_t reply_queue;
-} port_a_i2c_req_t;
+} port_i2c_req_t;
 
 /**
  * @brief Response message sent back to the requester.
@@ -72,7 +72,7 @@ typedef struct {
 
 	/** Raw response bytes (application-defined). */
 	uint8_t data[6];
-} port_a_i2c_resp_t;
+} port_i2c_resp_t;
 
 #ifdef __cplusplus
 }

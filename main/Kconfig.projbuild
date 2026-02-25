@@ -35,3 +35,21 @@ config TIMEZONE
           UTC:      UTC0
 
 endmenu
+
+menu "External I2C Bus"
+
+    choice EXT_I2C_BUS
+        prompt "External I2C bus pins"
+        default EXT_I2C_BUS_PORT_A
+
+        config EXT_I2C_BUS_PORT_A
+            bool "Use Port A pins"
+
+        config EXT_I2C_BUS_PORT_B
+            bool "Use Port B pins"
+
+        config EXT_I2C_BUS_PORT_C
+            bool "Use Port C pins"
+    endchoice
+
+endmenu

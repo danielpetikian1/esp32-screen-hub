@@ -10,7 +10,7 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "port_a_i2c_service.h" // port_a_i2c_service_queue(), req/resp types
+#include "port_a_i2c_service.h" // port_i2c_service_queue(), req/resp types
 #include "port_a_i2c_types.h"
 
 #include "port_a_i2c_readings.h" // readings_update_sht40
@@ -85,14 +85,14 @@ static esp_err_t process_buf(const uint8_t buf[6]) {
  *  - This task only submits requests and processes replies.
  */
 static void sht40_task(void *arg) {
-	// Device handle (created by port_a_add_device) passed in via task arg
+	// Device handle (created by port_add_device) passed in via task arg
 	i2c_master_dev_handle_t dev = (i2c_master_dev_handle_t)arg;
 
 	// Port A service request queue (shared by all Port A requesters)
-	QueueHandle_t port_a_q = port_a_i2c_service_queue();
+	QueueHandle_t port_q = port_i2c_service_queue();
 
 	// Per-task reply queue: owner sends exactly one response per request
-	QueueHandle_t reply_q = xQueueCreate(2, sizeof(port_a_i2c_resp_t));
+	QueueHandle_t reply_q = xQueueCreate(2, sizeof(port_i2c_resp_t));
 	if (!reply_q) {
 		ESP_LOGE(TAG, "Failed to create reply queue");
 		vTaskDelete(NULL);
@@ -110,7 +110,7 @@ static void sht40_task(void *arg) {
 		//  - Send 1-byte command (0xFD)
 		//  - Wait 25ms for conversion
 		//  - Read 6 bytes (T word+CRC, RH word+CRC)
-		port_a_i2c_req_t req = {
+		port_i2c_req_t req = {
 			.request_id = ++rid,
 			.sensor = SHT40,
 			.cmd = SHT40_CMD_MEAS_HIGH_PREC_NO_HEAT,
@@ -122,10 +122,10 @@ static void sht40_task(void *arg) {
 		};
 
 		// Submit request to the Port A owner task (blocks until queued)
-		(void)xQueueSend(port_a_q, &req, portMAX_DELAY);
+		(void)xQueueSend(port_q, &req, portMAX_DELAY);
 
 		// Wait for response from the owner task
-		port_a_i2c_resp_t resp = {0};
+		port_i2c_resp_t resp = {0};
 		if (xQueueReceive(reply_q, &resp, pdMS_TO_TICKS(500)) == pdTRUE) {
 			// Transport-level failure (NACK/timeout/etc.)
 			if (resp.err != ESP_OK) {

@@ -1,5 +1,4 @@
 #include "bsp/m5stack_core_s3.h"
-#include "driver/gpio.h"
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -11,9 +10,8 @@
 #include "http_service.h"
 #include "i2c_utils.h"
 #include "net_manager.h"
-#include "port_a_i2c.h"
-#include "port_a_i2c_readings.h"
-#include "port_a_i2c_service.h"
+#include "port_a_i2c.h"			// provides port_i2c_* and port_i2c_port_t
+#include "port_a_i2c_service.h" // provides port_i2c_service_start()
 #include "power_aw9523.h"
 #include "sgp30.h"
 #include "sht40.h"
@@ -26,8 +24,24 @@
 #define SHT40_ADDR 0x44
 #define SGP30_ADDR 0x58
 
+/* -------------------------------------------------------------------------- */
+/* Compile-time external bus selection (one bus for all external I2C devices) */
+/* -------------------------------------------------------------------------- */
+
+static inline port_i2c_port_t external_i2c_selected_port(void) {
+#if CONFIG_EXT_I2C_BUS_PORT_A
+	return PORT_I2C_PORT_A;
+#elif CONFIG_EXT_I2C_BUS_PORT_B
+	return PORT_I2C_PORT_B;
+#elif CONFIG_EXT_I2C_BUS_PORT_C
+	return PORT_I2C_PORT_C;
+#else
+#error "External I2C bus not selected in menuconfig"
+#endif
+}
+
 void app_main(void) {
-	// --- System init for Wi-Fi ---
+	/* --- System init for Wi-Fi --- */
 	esp_err_t ret = nvs_flash_init();
 	if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
 		ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -36,10 +50,11 @@ void app_main(void) {
 	} else {
 		ESP_ERROR_CHECK(ret);
 	}
+
 	ESP_ERROR_CHECK(esp_netif_init());
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-	// --- BSP/system I2C (for AW9523, etc) ---
+	/* --- BSP/system I2C (for AW9523, etc) --- */
 	ESP_ERROR_CHECK(bsp_i2c_init());
 
 	i2c_master_bus_handle_t sys_bus = NULL;
@@ -50,44 +65,62 @@ void app_main(void) {
 	vTaskDelay(pdMS_TO_TICKS(50));
 	ESP_LOGI(TAG, "Grove 5V enabled.");
 
-	// --- Port A I2C (GPIO2/1) ---
-	i2c_master_bus_handle_t porta = NULL;
-	ESP_ERROR_CHECK(port_a_i2c_init(&porta));
+	/* ---------------------------------------------------------------------- */
+	/* External I2C bus init (single bus chosen from Kconfig) */
+	/* ---------------------------------------------------------------------- */
+	const port_i2c_port_t ext_port = external_i2c_selected_port();
+	ESP_LOGI(TAG, "External I2C bus configured on port %d", (int)ext_port);
 
-	ESP_LOGI("porta", "idle SDA=%d SCL=%d", gpio_get_level(1),
-			 gpio_get_level(2));
+	i2c_master_bus_handle_t ext_bus = NULL;
+	port_i2c_bus_config_t cfg;
 
+	ESP_ERROR_CHECK(port_i2c_get_default_bus_config(ext_port, &cfg));
+	ESP_ERROR_CHECK(port_i2c_bus_init(&cfg, &ext_bus));
+
+	/* ---------------------------------------------------------------------- */
+	/* Add external devices (share same bus) */
+	/* ---------------------------------------------------------------------- */
 	i2c_master_dev_handle_t sht_dev = NULL;
-	ESP_ERROR_CHECK(port_a_add_device(porta, SHT40_ADDR, 400000, &sht_dev));
+	ESP_ERROR_CHECK(port_i2c_add_device(ext_bus, SHT40_ADDR, 400000, &sht_dev));
 
 	i2c_master_dev_handle_t sgp_dev = NULL;
-	ESP_ERROR_CHECK(port_a_add_device(porta, SGP30_ADDR, 100000, &sgp_dev));
+	ESP_ERROR_CHECK(port_i2c_add_device(ext_bus, SGP30_ADDR, 100000, &sgp_dev));
 
+	/* ---------------------------------------------------------------------- */
+	/* Start services/tasks */
+	/* ---------------------------------------------------------------------- */
 	readings_store_init();
 	net_manager_start();
+
 	sntp_service_init_and_start(CONFIG_TIMEZONE);
 	sntp_service_wait_for_sync(pdMS_TO_TICKS(5000));
 
 	http_service_start();
 	weather_task_start();
-	port_a_i2c_service_start();
+
+	/* Start the (single) external I2C owner/service */
+	port_i2c_service_start();
+
+	/* Start sensor tasks */
 	sht40_task_start(sht_dev);
 	sgp30_task_start(sgp_dev);
+
+	/* ---------------------------------------------------------------------- */
+	/* UI init + loop */
+	/* ---------------------------------------------------------------------- */
 	lv_disp_t *disp = bsp_display_start();
 	assert(disp);
 	bsp_display_brightness_set(100);
 
 	ESP_ERROR_CHECK(ui_init(disp));
+
 	readings_snapshot_t snapshot = {0};
 	char time_str[9];
-	for (;;) {
-		/* Format local time into HH:MM:SS */
-		sntp_service_format_local_time("%H:%M:%S", time_str, sizeof(time_str));
 
-		/* Update time labels (dashboard + clock) */
+	for (;;) {
+		sntp_service_format_local_time("%H:%M:%S", time_str, sizeof(time_str));
 		ui_set_time_str(time_str);
 
-		/* Update sensor widgets */
 		readings_get_snapshot(&snapshot);
 		ui_update_readings(&snapshot);
 
