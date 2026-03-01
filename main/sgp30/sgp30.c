@@ -10,11 +10,11 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "port_a_i2c_service.h" // port_i2c_service_queue(), req/resp types
-#include "port_a_i2c_types.h"
+#include "port_i2c_service.h" // port_i2c_service_queue(), req/resp types
+#include "port_i2c_types.h"
 
-#include "port_a_i2c_readings.h" // readings_update_sgp30
-#include "sensirion_utils.h"	 // sensirion_crc8()
+#include "port_i2c_readings.h" // readings_update_sgp30
+#include "sensirion_utils.h"   // sensirion_crc8()
 
 // Logging tag for this module/task
 #define TAG "sgp30"

@@ -10,8 +10,8 @@
 #include "http_service.h"
 #include "i2c_utils.h"
 #include "net_manager.h"
-#include "port_a_i2c.h"			// provides port_i2c_* and port_i2c_port_t
-#include "port_a_i2c_service.h" // provides port_i2c_service_start()
+#include "port_i2c.h"		  // provides port_i2c_* and port_i2c_port_t
+#include "port_i2c_service.h" // provides port_i2c_service_start()
 #include "power_aw9523.h"
 #include "sgp30.h"
 #include "sht40.h"

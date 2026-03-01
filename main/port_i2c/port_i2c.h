@@ -2,7 +2,7 @@
 
 #include "driver/i2c_master.h"
 #include "esp_err.h"
-#include "port_a_i2c_types.h"
+#include "port_i2c_types.h"
 #include <stdint.h>
 
 #ifdef __cplusplus

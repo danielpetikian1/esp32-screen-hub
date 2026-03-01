@@ -1,6 +1,6 @@
-#include "port_a_i2c_service.h"
+#include "port_i2c_service.h"
 #include "freertos/FreeRTOS.h"
-#include "port_a_i2c.h"
+#include "port_i2c.h"
 #include <stdio.h>
 #include <string.h>
 

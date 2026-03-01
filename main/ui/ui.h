@@ -18,7 +18,7 @@
 
 #include "esp_err.h"
 #include "lvgl.h"
-#include "port_a_i2c_readings.h" // for readings_snapshot_t
+#include "port_i2c_readings.h" // for readings_snapshot_t
 #include <stdbool.h>
 
 #ifdef __cplusplus
