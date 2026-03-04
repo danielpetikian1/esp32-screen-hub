@@ -159,6 +159,10 @@ static void build_clock_screen(void) {
 
 	g_ui.lbl_clock_big = lv_label_create(parent);
 	lv_label_set_text(g_ui.lbl_clock_big, "--:--:--");
+
+	lv_obj_set_style_text_font(g_ui.lbl_clock_big, &lv_font_montserrat_40,
+							   LV_PART_MAIN);
+
 	lv_obj_center(g_ui.lbl_clock_big);
 }
 
@@ -177,9 +181,9 @@ esp_err_t ui_init(lv_disp_t *disp) {
 	lv_obj_set_size(g_ui.tileview, lv_pct(100), lv_pct(100));
 
 	/* Add tiles (swipe left/right) */
-	g_ui.tile_stats = lv_tileview_add_tile(g_ui.tileview, 0, 0, LV_DIR_RIGHT);
+	g_ui.tile_clock = lv_tileview_add_tile(g_ui.tileview, 0, 0, LV_DIR_RIGHT);
 
-	g_ui.tile_clock = lv_tileview_add_tile(g_ui.tileview, 1, 0, LV_DIR_LEFT);
+	g_ui.tile_stats = lv_tileview_add_tile(g_ui.tileview, 1, 0, LV_DIR_LEFT);
 
 	build_stats_screen();
 	build_clock_screen();
