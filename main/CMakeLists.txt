@@ -42,6 +42,7 @@ idf_component_register(
         nvs_flash
         esp_http_client
         mbedtls
+        json
         driver
         esp_driver_gpio
         m5stack_core_s3

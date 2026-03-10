@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -51,43 +52,6 @@ bool stocks_get_snapshot(stocks_snapshot_t *out) {
 }
 
 /**
- * @brief Extract a float value from a flat JSON object string.
- *
- * Searches for "key": followed by a numeric value. Handles integer and
- * floating-point values. Does NOT support nested objects or arrays.
- *
- * @param json NUL-terminated JSON string.
- * @param key  Field name to locate (without quotes).
- * @param val  Output float value on success.
- * @return true if found and parsed successfully.
- */
-static bool json_get_float(const char *json, const char *key, float *val) {
-	/* Build search pattern: "key": */
-	char pattern[32];
-	snprintf(pattern, sizeof(pattern), "\"%s\":", key);
-
-	const char *p = strstr(json, pattern);
-	if (!p) {
-		return false;
-	}
-
-	p += strlen(pattern);
-	/* Skip optional whitespace after the colon. */
-	while (*p == ' ' || *p == '\t') {
-		p++;
-	}
-
-	char *end;
-	float f = strtof(p, &end);
-	if (end == p) {
-		return false; /* No numeric conversion */
-	}
-
-	*val = f;
-	return true;
-}
-
-/**
  * @brief Parse a Finnhub /quote JSON response into a stock_quote_t.
  *
  * Expected fields:
@@ -106,23 +70,34 @@ static bool parse_finnhub_quote(const char *json, const char *symbol,
 		return false;
 	}
 
-	float c = 0.0f, d = 0.0f, dp = 0.0f;
-	if (!json_get_float(json, "c", &c) || !json_get_float(json, "d", &d) ||
-		!json_get_float(json, "dp", &dp)) {
+	bool ok = false;
+	cJSON *root = cJSON_Parse(json);
+	if (!root) {
 		return false;
 	}
 
-	/* A price of 0.0 usually means the market is closed or symbol invalid. */
-	if (c == 0.0f) {
-		return false;
+	const cJSON *c_item = cJSON_GetObjectItemCaseSensitive(root, "c");
+	const cJSON *d_item = cJSON_GetObjectItemCaseSensitive(root, "d");
+	const cJSON *dp_item = cJSON_GetObjectItemCaseSensitive(root, "dp");
+
+	if (cJSON_IsNumber(c_item) && cJSON_IsNumber(d_item) &&
+		cJSON_IsNumber(dp_item)) {
+		float c = (float)c_item->valuedouble;
+
+		/* A price of 0.0 usually means the market is closed or symbol invalid.
+		 */
+		if (c != 0.0f) {
+			snprintf(out->symbol, sizeof(out->symbol), "%s", symbol);
+			out->price = c;
+			out->change = (float)d_item->valuedouble;
+			out->change_pct = (float)dp_item->valuedouble;
+			out->valid = true;
+			ok = true;
+		}
 	}
 
-	snprintf(out->symbol, sizeof(out->symbol), "%s", symbol);
-	out->price = c;
-	out->change = d;
-	out->change_pct = dp;
-	out->valid = true;
-	return true;
+	cJSON_Delete(root);
+	return ok;
 }
 
 /**
@@ -132,7 +107,7 @@ static bool parse_finnhub_quote(const char *json, const char *symbol,
  *  1. Builds the Finnhub /quote URL with the API key
  *  2. Submits the request to the shared HTTP service queue
  *  3. Waits for the response (up to 15 s)
- *  4. Parses the JSON body with json_get_float()
+ *  4. Parses the JSON body with cJSON
  *  5. Updates the shared snapshot under the mutex
  *
  * After all symbols have been fetched, the task sleeps for the configured

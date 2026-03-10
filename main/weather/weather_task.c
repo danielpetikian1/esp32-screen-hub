@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -60,121 +61,68 @@ bool weather_get_snapshot(weather_current_t *out) {
 }
 
 /**
- * @brief Find the start of the last non-empty line in a CSV buffer.
+ * @brief Parse an Open-Meteo JSON response into a weather snapshot.
  *
- * Open-Meteo CSV responses include metadata and headers before the final
- * line containing the current values. This helper locates the final data line
- * by trimming trailing whitespace and finding the last newline boundary.
+ * Expects the standard Open-Meteo /v1/forecast JSON structure with a
+ * "current" object containing:
+ *   time                  – unix timestamp
+ *   temperature_2m        – °C
+ *   relative_humidity_2m  – % (integer)
+ *   precipitation         – mm
+ *   windspeed_10m         – mph (requested via wind_speed_unit=mph)
+ *   is_day                – 0 or 1
  *
- * @param[in] buf NUL-terminated CSV response buffer.
- * @return Pointer into buf where the last data line begins.
- */
-static const char *find_last_data_line(const char *buf) {
-	size_t n = strlen(buf);
-
-	while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r' ||
-					 buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
-		n--;
-	}
-
-	while (n > 0 && buf[n - 1] != '\n' && buf[n - 1] != '\r') {
-		n--;
-	}
-
-	while (buf[n] == '\n' || buf[n] == '\r') {
-		n++;
-	}
-
-	return &buf[n];
-}
-
-/**
- * @brief Tokenize a CSV line into fields (in-place).
- *
- * Replaces commas with NUL terminators and populates the fields array with
- * pointers to each field.
- *
- * @param[in,out] line CSV line buffer to tokenize (modified in-place).
- * @param[out] fields Output array of pointers to each field.
- * @param[in] max_fields Maximum number of fields to parse.
- * @return Number of fields found (<= max_fields).
- *
- * Notes:
- *  - This parser is intentionally simple: it does not support quoted CSV.
- *  - This is fine for Open-Meteo's numeric output format.
- */
-static int split_csv_line(char *line, char *fields[], int max_fields) {
-	int count = 0;
-	char *p = line;
-
-	while (*p && count < max_fields) {
-		fields[count++] = p;
-
-		while (*p && *p != ',' && *p != '\n' && *p != '\r') {
-			p++;
-		}
-
-		if (*p == ',') {
-			*p++ = '\0';
-		} else {
-			*p = '\0';
-			break;
-		}
-	}
-	return count;
-}
-
-/**
- * @brief Parse Open-Meteo "current" CSV response into a weather snapshot.
- *
- * The Open-Meteo CSV payload contains multiple sections. We locate the last
- * data line and parse six fields:
- *   time,temp,humidity,precip,wind,is_day
- *
- * @param[in] csv NUL-terminated CSV response body.
- * @param[out] out Parsed weather snapshot (valid=true on success).
+ * @param[in]  json NUL-terminated JSON response body.
+ * @param[out] out  Parsed snapshot (valid=true on success).
  * @return true on successful parse, false otherwise.
  */
-static bool parse_openmeteo_current_csv(const char *csv,
-										weather_current_t *out) {
-	if (!csv || !out) {
+static bool parse_openmeteo_current_json(const char *json,
+										 weather_current_t *out) {
+	if (!json || !out) {
 		return false;
 	}
 
-	const char *last = find_last_data_line(csv);
-	if (!last || !*last) {
+	bool ok = false;
+	cJSON *root = cJSON_Parse(json);
+	if (!root) {
 		return false;
 	}
 
-	/* Copy just the last line so we can tokenize in-place without touching
-	 * the full RX buffer.
-	 */
-	char line[160];
-	size_t len = 0;
-	while (last[len] && last[len] != '\n' && last[len] != '\r' &&
-		   len < sizeof(line) - 1) {
-		len++;
-	}
-	memcpy(line, last, len);
-	line[len] = '\0';
-
-	char *fields[6] = {0};
-	int nf = split_csv_line(line, fields, 6);
-	if (nf != 6) {
-		return false;
+	const cJSON *current = cJSON_GetObjectItemCaseSensitive(root, "current");
+	if (!cJSON_IsObject(current)) {
+		goto done;
 	}
 
-	weather_current_t w = {0};
-	w.time_unix = strtoll(fields[0], NULL, 10);
-	w.temperature_c = strtof(fields[1], NULL);
-	w.humidity_pct = (int)strtol(fields[2], NULL, 10);
-	w.precipitation_mm = strtof(fields[3], NULL);
-	w.windspeed_mph = strtof(fields[4], NULL);
-	w.is_day = (strtol(fields[5], NULL, 10) != 0);
-	w.valid = true;
+	const cJSON *time_item = cJSON_GetObjectItemCaseSensitive(current, "time");
+	const cJSON *temp_item =
+		cJSON_GetObjectItemCaseSensitive(current, "temperature_2m");
+	const cJSON *hum_item =
+		cJSON_GetObjectItemCaseSensitive(current, "relative_humidity_2m");
+	const cJSON *prec_item =
+		cJSON_GetObjectItemCaseSensitive(current, "precipitation");
+	const cJSON *wind_item =
+		cJSON_GetObjectItemCaseSensitive(current, "windspeed_10m");
+	const cJSON *isday_item =
+		cJSON_GetObjectItemCaseSensitive(current, "is_day");
 
-	*out = w;
-	return true;
+	if (!cJSON_IsNumber(time_item) || !cJSON_IsNumber(temp_item) ||
+		!cJSON_IsNumber(hum_item) || !cJSON_IsNumber(prec_item) ||
+		!cJSON_IsNumber(wind_item) || !cJSON_IsNumber(isday_item)) {
+		goto done;
+	}
+
+	out->time_unix = (int64_t)time_item->valuedouble;
+	out->temperature_c = (float)temp_item->valuedouble;
+	out->humidity_pct = (int)hum_item->valuedouble;
+	out->precipitation_mm = (float)prec_item->valuedouble;
+	out->windspeed_mph = (float)wind_item->valuedouble;
+	out->is_day = (isday_item->valuedouble != 0.0);
+	out->valid = true;
+	ok = true;
+
+done:
+	cJSON_Delete(root);
+	return ok;
 }
 
 /**
@@ -183,9 +131,9 @@ static bool parse_openmeteo_current_csv(const char *csv,
  *
  * The task:
  *  - Creates a private reply queue for responses from the HTTP owner task
- *  - Builds an Open-Meteo request URL (CSV output for easy embedded parsing)
+ *  - Builds an Open-Meteo request URL (JSON output)
  *  - Provides a fixed RX buffer for the response body (no heap allocations)
- *  - Parses the last CSV data line into a weather_current_t snapshot
+ *  - Parses the "current" JSON object into a weather_current_t snapshot
  *  - Publishes the snapshot for the UI (mutex-protected)
  *
  * Notes:
@@ -200,10 +148,8 @@ static void weather_task(void *arg) {
 	QueueHandle_t http_q = http_service_queue();
 	QueueHandle_t reply_q = xQueueCreate(2, sizeof(http_resp_t));
 
-	/* Small fixed response buffer: enough for Open-Meteo CSV current response.
-	 * Keeping this local avoids heap fragmentation and keeps ownership clear.
-	 */
-	static char rx[1024];
+	/* JSON responses are larger than the old CSV format. */
+	static char rx[2048];
 
 	TickType_t last = xTaskGetTickCount();
 	const TickType_t period = pdMS_TO_TICKS(3 * 60 * 1000);
@@ -214,8 +160,7 @@ static void weather_task(void *arg) {
 	for (;;) {
 		snprintf(url, sizeof(url),
 				 "http://api.open-meteo.com/v1/forecast"
-				 "?format=csv"
-				 "&latitude=%.4f&longitude=%.4f"
+				 "?latitude=%.4f&longitude=%.4f"
 				 "&current=temperature_2m,relative_humidity_2m,precipitation,"
 				 "windspeed_10m,is_day"
 				 "&timeformat=unixtime"
@@ -227,12 +172,9 @@ static void weather_task(void *arg) {
 		req.method = HTTP_REQ_GET;
 		req.reply_queue = reply_q;
 		req.request_id = ++rid;
-		snprintf(req.url, sizeof(req.url), "%s", url);
-		req.url[sizeof(req.url) - 1] = '\0';
-
-		/* Tell HTTP service where to store the response body. */
 		req.rx_buf = rx;
 		req.rx_cap = sizeof(rx);
+		snprintf(req.url, sizeof(req.url), "%s", url);
 
 		ESP_LOGI(TAG, "enqueue id=%" PRIu32, req.request_id);
 		xQueueSend(http_q, &req, portMAX_DELAY);
@@ -248,8 +190,7 @@ static void weather_task(void *arg) {
 				resp.rx_len > 0 && !resp.truncated) {
 
 				weather_current_t parsed;
-				if (parse_openmeteo_current_csv(rx, &parsed)) {
-					/* Publish new snapshot for UI. */
+				if (parse_openmeteo_current_json(rx, &parsed)) {
 					if (xSemaphoreTake(s_weather_mu, pdMS_TO_TICKS(50)) ==
 						pdTRUE) {
 						s_weather = parsed;
@@ -263,7 +204,7 @@ static void weather_task(void *arg) {
 							 parsed.windspeed_mph, parsed.precipitation_mm,
 							 (int)parsed.is_day);
 				} else {
-					ESP_LOGW(TAG, "CSV parse failed");
+					ESP_LOGW(TAG, "JSON parse failed");
 				}
 			}
 		} else {
