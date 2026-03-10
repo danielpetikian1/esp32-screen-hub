@@ -18,6 +18,7 @@ idf_component_register(
         "ui/ui_stats.c"
         "ui/ui_weather.c"
         "ui/ui_task.c"
+        "ui/assets/fa_microchip_16.c"
     INCLUDE_DIRS
         "."
         "common"

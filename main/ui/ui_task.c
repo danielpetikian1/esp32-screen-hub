@@ -20,6 +20,7 @@
 #include "port_i2c_readings.h"
 #include "sntp.h"
 #include "ui.h"
+#include "ui_screens.h"
 #include "weather_task.h"
 
 /**
@@ -47,6 +48,9 @@ static void ui_task(void *arg) {
 		/* Outdoor weather: fetched by weather_task every 3 minutes */
 		weather_get_snapshot(&weather);
 		ui_update_weather(&weather);
+
+		/* Clock screen extras */
+		ui_clock_update_cpu();
 
 		vTaskDelay(pdMS_TO_TICKS(150));
 	}

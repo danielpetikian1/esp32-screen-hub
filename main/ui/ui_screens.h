@@ -24,6 +24,9 @@
 /** Build the full-screen clock tile (montserrat_40 centred time label). */
 void ui_clock_build(lv_obj_t *tile);
 
+/** Refresh the CPU usage label on the clock screen. */
+void ui_clock_update_cpu(void);
+
 /** Build the indoor sensor dashboard tile (2×2 card grid + header bar). */
 void ui_stats_build(lv_obj_t *tile);
 
