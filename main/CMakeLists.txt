@@ -17,6 +17,7 @@ idf_component_register(
         "ui/ui_clock.c"
         "ui/ui_stats.c"
         "ui/ui_weather.c"
+        "ui/ui_task.c"
     INCLUDE_DIRS
         "."
         "common"

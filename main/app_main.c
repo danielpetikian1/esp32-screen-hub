@@ -17,6 +17,7 @@
 #include "sht40.h"
 #include "sntp.h"
 #include "ui.h"
+#include "ui_task.h"
 #include "weather_task.h"
 
 #define TAG "main"
@@ -114,20 +115,5 @@ void app_main(void) {
 
 	ESP_ERROR_CHECK(ui_init(disp));
 
-	readings_snapshot_t snapshot = {0};
-	weather_current_t weather = {0};
-	char time_str[9];
-
-	for (;;) {
-		sntp_service_format_local_time("%H:%M:%S", time_str, sizeof(time_str));
-		ui_set_time_str(time_str);
-
-		readings_get_snapshot(&snapshot);
-		ui_update_readings(&snapshot);
-
-		weather_get_snapshot(&weather);
-		ui_update_weather(&weather);
-
-		vTaskDelay(pdMS_TO_TICKS(500));
-	}
+	ui_task_start();
 }
