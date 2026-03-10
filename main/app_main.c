@@ -115,6 +115,7 @@ void app_main(void) {
 	ESP_ERROR_CHECK(ui_init(disp));
 
 	readings_snapshot_t snapshot = {0};
+	weather_current_t weather = {0};
 	char time_str[9];
 
 	for (;;) {
@@ -123,6 +124,9 @@ void app_main(void) {
 
 		readings_get_snapshot(&snapshot);
 		ui_update_readings(&snapshot);
+
+		weather_get_snapshot(&weather);
+		ui_update_weather(&weather);
 
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}

@@ -14,6 +14,9 @@ idf_component_register(
         "sntp/sntp.c"
         "common/sensirion_utils.c"
         "ui/ui.c"
+        "ui/ui_clock.c"
+        "ui/ui_stats.c"
+        "ui/ui_weather.c"
     INCLUDE_DIRS
         "."
         "common"

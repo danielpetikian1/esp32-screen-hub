@@ -206,7 +206,7 @@ static void weather_task(void *arg) {
 	static char rx[1024];
 
 	TickType_t last = xTaskGetTickCount();
-	const TickType_t period = pdMS_TO_TICKS(15 * 60 * 1000);
+	const TickType_t period = pdMS_TO_TICKS(3 * 60 * 1000);
 
 	uint32_t rid = 1;
 	char url[256];

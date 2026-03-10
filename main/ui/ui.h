@@ -19,6 +19,7 @@
 #include "esp_err.h"
 #include "lvgl.h"
 #include "port_i2c_readings.h" // for readings_snapshot_t
+#include "weather_task.h"	   // for weather_current_t
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -77,6 +78,17 @@ ui_temp_unit_t ui_get_temp_unit(void);
  * Caller should trigger a refresh (e.g., next update cycle).
  */
 void ui_set_temp_unit(ui_temp_unit_t unit);
+
+/**
+ * @brief Update the weather screen with the latest outdoor data.
+ *
+ * Safe to call periodically (e.g., every 500 ms).
+ * Shows "Fetching..." placeholders when w->valid is false.
+ * Background colour changes between day (blue) and night (navy).
+ *
+ * @param w Pointer to the latest weather snapshot.
+ */
+void ui_update_weather(const weather_current_t *w);
 
 #ifdef __cplusplus
 }
