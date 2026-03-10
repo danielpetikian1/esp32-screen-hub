@@ -4,18 +4,11 @@
 #include "net_manager.h"
 #include <string.h>
 
-/* Number of concurrent HTTP worker tasks.  Each worker picks requests from
- * the shared queue independently, allowing multiple in-flight connections.
- * Capped at 2: the TLS handshake requires ~36 KB of scratch heap per
- * connection; more than 2 simultaneous handshakes risks
- * MBEDTLS_ERR_SSL_ALLOC_FAILED on the ESP32-S3 when other tasks are also making
- * HTTP requests. */
-#define HTTP_SERVICE_NUM_WORKERS 2
-
 #include "esp_crt_bundle.h"
 #include "esp_err.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "http_service";
 
@@ -195,10 +188,10 @@ static void http_worker_task(void *arg) {
  */
 void http_service_start(void) {
 	if (!s_http_q) {
-		s_http_q =
-			xQueueCreate(HTTP_SERVICE_NUM_WORKERS * 2, sizeof(http_req_t));
+		s_http_q = xQueueCreate(CONFIG_HTTP_SERVICE_NUM_WORKERS * 2,
+								sizeof(http_req_t));
 	}
-	for (int i = 0; i < HTTP_SERVICE_NUM_WORKERS; i++) {
+	for (int i = 0; i < CONFIG_HTTP_SERVICE_NUM_WORKERS; i++) {
 		xTaskCreatePinnedToCore(http_worker_task, "http_svc", 6144, NULL, 5,
 								NULL, 0);
 	}

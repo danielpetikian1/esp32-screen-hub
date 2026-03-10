@@ -4,10 +4,10 @@
  *
  * Owns the periodic loop that pulls the latest data from each service and
  * pushes it to the LVGL screens. Runs on core 0 to leave core 1 free for
- * the Wi-Fi/TCP stack and BSP display driver (which default to core 1).
+ * the LVGL renderer and BSP display driver (pinned to core 1 by the BSP).
  *
- * Update rate: 150 ms (set by the linter; fast enough for a smooth clock
- * display and responsive touch, low enough not to flood the LVGL queue).
+ * Update rate: 300 ms — fast enough for a smooth clock display and
+ * responsive touch, low enough not to flood the LVGL queue.
  *
  * All LVGL writes happen inside the screen update functions, which each
  * acquire bsp_display_lock() internally. This task does not hold the lock
@@ -63,15 +63,17 @@ static void ui_task(void *arg) {
 }
 
 /**
- * @brief Spawn the UI update task pinned to core 0 at priority 8.
+ * @brief Spawn the UI update task pinned to core 0 at priority 5.
  *
- * Priority 8 is above the default LVGL task priority (typically 5) so time
- * and sensor updates are not starved when the display is busy rendering.
+ * LVGL renders on core 1, so there is no priority contention between
+ * ui_update and the display driver. Priority 5 matches the other
+ * background tasks on core 0 and keeps IDLE0 schedulable during startup
+ * when HTTP workers are doing concurrent TLS handshakes.
  * Must be called after ui_init().
  */
 void ui_task_start(void) {
 	xTaskCreatePinnedToCore(
 		ui_task, "ui_update",
 		4096,			   /* stack: sufficient for snprintf + snapshots */
-		NULL, 8, NULL, 0); /* core 0 */
+		NULL, 5, NULL, 0); /* core 0 */
 }

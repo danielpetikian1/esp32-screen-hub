@@ -19,7 +19,7 @@ Swipe left/right to navigate between tiles:
 
 ## Hardware
 
-- **M5Stack Core S3** (ESP32-S3 dual-core 240 MHz, 512 KB SRAM, 8 MB OPI PSRAM, 320×240 touchscreen)
+- **M5Stack Core S3** (ESP32-S3 dual-core 240 MHz, 512 KB SRAM, 8 MB PSRAM, 320×240 touchscreen)
 - External I2C sensors via Grove port (Port A/B/C, configurable in menuconfig):
   - **SHT40** — temperature & humidity
   - **SGP30** — CO₂ & TVOC air quality
@@ -53,18 +53,6 @@ Or use `idf.py menuconfig` to configure interactively.
 
 Choose which Grove port your sensors are wired to under **External I2C Bus** in menuconfig (Port A, B, or C).
 
-### Optional: Enable PSRAM
-
-The M5Stack Core S3 ships with 8 MB of OPI PSRAM. Enabling it expands the available heap from ~300 KB to ~8 MB, which allows more concurrent TLS connections and larger allocations without heap pressure. Uncomment the PSRAM lines in `sdkconfig.defaults`, or configure via menuconfig:
-
-```
-Component config → ESP PSRAM
-  → [x] Support for external, SPI-connected RAM
-  → Mode: Octal Mode PSRAM
-  → Speed: 80 MHz
-  → [x] Make RAM allocatable using heap_caps_malloc
-```
-
 ---
 
 ## Build & Flash
@@ -87,34 +75,36 @@ The system is explicitly partitioned across the two ESP32-S3 cores to prevent ne
 | Core | Tasks | Notes |
 |------|-------|-------|
 | **Core 1** | LVGL renderer (pri 4) | Pinned by M5Stack BSP — uncontested |
-| **Core 0** | HTTP workers ×2 (pri 5), weather (pri 5), stocks (pri 5), sht40 (pri 5), sgp30 (pri 5), port_i2c (pri 6), ui_update (pri 8) | All background work |
+| **Core 0** | HTTP workers ×4 (pri 5), weather (pri 5), stocks (pri 5), sht40 (pri 5), sgp30 (pri 5), port_i2c (pri 6), ui_update (pri 5) | All background work |
 
 TLS handshakes are the heaviest CPU work in the system. Running them on core 0 means they can never preempt the LVGL renderer on core 1, eliminating the main source of frame drops.
 
 ### HTTP service — concurrent worker pool
 
-A shared FreeRTOS queue accepts `http_req_t` messages from any task. A pool of worker tasks (default: 2) pulls from the queue concurrently. Because each worker creates its own `esp_http_client` handle on the stack, workers share no mutable state and are fully thread-safe.
+A shared FreeRTOS queue accepts `http_req_t` messages from any task. A pool of 4 worker tasks pulls from the queue concurrently. Because each worker creates its own `esp_http_client` handle on the stack, workers share no mutable state and are fully thread-safe.
 
 ```
 [stocks_task]  ──┐
 [weather_task] ──┼──▶  http_q  ──▶  [http_svc_0]  ──▶  Finnhub / Open-Meteo
-                 └──▶         ──▶  [http_svc_1]  ──▶  (concurrent)
+                 │              ──▶  [http_svc_1]  ──▶  (concurrent)
+                 │              ──▶  [http_svc_2]
+                 └──▶           ──▶  [http_svc_3]
 ```
 
-Worker count is limited by heap: each TLS session needs ~36 KB for the mbedTLS context. `CONFIG_MBEDTLS_DYNAMIC_BUFFER=y` is enabled so the 16 KB RX buffer is allocated only during active data transfer rather than held for the full connection lifetime. With PSRAM enabled, the worker count can be raised to 4–6.
+mbedTLS context memory is allocated from PSRAM (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y`) so concurrent TLS handshakes don't compete with the internal SRAM used by WiFi, LVGL, and task stacks. `CONFIG_MBEDTLS_DYNAMIC_BUFFER=y` is also enabled so the 16 KB RX buffer is held only during active data transfer.
 
 ### Stocks task — batch parallel fetch
 
 Rather than fetching tickers one at a time (total latency = N × per-request latency), the stocks task submits all configured requests to the HTTP queue simultaneously, then collects all responses:
 
 ```
-Phase 1 — submit all at once:  [DIA req] [SPY req] [QQQ req]  →  http_q
+Phase 1 — submit all at once:  [DIA req] [SPY req] [QQQ req] ...  →  http_q
 Phase 2 — collect all:         responses arrive in any order, matched back by request_id
 ```
 
 Each ticker has its own 512-byte RX buffer (`rx[STOCKS_MAX_SYMBOLS][512]`) so HTTP workers fill them in parallel without any coordination. Responses are matched to symbols using a `batch_start` request ID offset recorded before submission.
 
-With 2 workers and 6 tickers, all requests complete in ~3 waves of 2 — roughly 3× faster than the previous serial design. With PSRAM and more workers, this approaches true parallelism.
+With 4 workers and up to 6 tickers, all requests are enqueued at once and workers pick them up immediately — total cycle time is `max(per-request latency)` rather than `sum(per-request latency)`.
 
 ### Snapshot pattern
 
@@ -161,7 +151,8 @@ main/
 ## Design Goals
 
 - **Core isolation** — LVGL renderer on core 1, all I/O and sensor work on core 0; no contention between rendering and network
-- **Concurrent HTTP** — worker pool with shared queue enables parallel in-flight TLS connections
+- **Concurrent HTTP** — 4-worker pool with shared queue enables parallel in-flight TLS connections
+- **PSRAM-backed TLS** — mbedTLS allocates from PSRAM, keeping internal SRAM free for WiFi and the kernel
 - **Batch fetching** — all stock requests submitted simultaneously; responses collected in any order by request ID
 - **Snapshot pattern** — producers and the UI communicate through mutex-protected value copies, not shared pointers
 - **Owner task pattern** — HTTP and I2C each serialised through a single owner task + queue; no manual locking in clients

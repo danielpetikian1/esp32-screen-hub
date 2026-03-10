@@ -159,7 +159,7 @@ static void weather_task(void *arg) {
 
 	for (;;) {
 		snprintf(url, sizeof(url),
-				 "http://api.open-meteo.com/v1/forecast"
+				 "https://api.open-meteo.com/v1/forecast"
 				 "?latitude=%.4f&longitude=%.4f"
 				 "&current=temperature_2m,relative_humidity_2m,precipitation,"
 				 "windspeed_10m,is_day"

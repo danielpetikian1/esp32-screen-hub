@@ -1,6 +1,7 @@
 # ── WiFi ──────────────────────────────────────────────────────────────────────
 CONFIG_WIFI_SSID=""
 CONFIG_WIFI_PASSWORD=""
+CONFIG_HTTP_SERVICE_NUM_WORKERS=4
 
 # ── Location (decimal degrees) ────────────────────────────────────────────────
 CONFIG_LOCATION_LATITUDE="37.8012"
@@ -20,15 +21,14 @@ CONFIG_FINNHUB_SYMBOL_5=""
 CONFIG_FINNHUB_SYMBOL_6=""
 
 # ── mbedTLS – dynamic I/O buffers reduce per-connection heap from ~20 KB to
-#    only what is needed during active data transfer, allowing 2+ concurrent
-#    TLS sessions within the ESP32-S3's internal SRAM budget.
+#    only what is needed during active data transfer. Allocate from PSRAM so
+#    concurrent TLS sessions don't exhaust internal SRAM.
 CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
 CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
 CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 
-# ── (Optional) Enable PSRAM to increase heap and allow more HTTP workers ──────
-# CONFIG_SPIRAM=y
-# CONFIG_ESP32S3_SPIRAM_SUPPORT=y
-# CONFIG_SPIRAM_MODE_OCT=y
-# CONFIG_SPIRAM_SPEED_80M=y
-# CONFIG_SPIRAM_USE_MALLOC=y
+# ── Task watchdog ──────────────────────────────────────────────────────────────
+# ECDH key exchange (P-256) takes 8–15 s on ESP32-S3 even with hardware MPI.
+# 5 s (default) is too short; 30 s gives all workers room to finish handshakes.
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30

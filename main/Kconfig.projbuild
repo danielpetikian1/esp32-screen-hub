@@ -8,6 +8,10 @@ config WIFI_PASSWORD
     string "WiFi Password"
     default ""
 
+config HTTP_SERVICE_NUM_WORKERS
+    int "Number of HTTP workers"
+    default 4
+
 endmenu
 
 menu "Location Configuration"
