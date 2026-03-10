@@ -201,5 +201,5 @@ static void sgp30_task(void *arg) {
  */
 void sgp30_task_start(i2c_master_dev_handle_t dev) {
 	// Pin task to core 1; adjust stack/priority as needed
-	xTaskCreatePinnedToCore(sgp30_task, "sgp30", 4096, (void *)dev, 5, NULL, 1);
+	xTaskCreatePinnedToCore(sgp30_task, "sgp30", 4096, (void *)dev, 5, NULL, 0);
 }

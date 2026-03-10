@@ -232,5 +232,5 @@ void weather_task_start(void) {
 	memset(&s_weather, 0, sizeof(s_weather));
 	s_weather.valid = false;
 
-	xTaskCreatePinnedToCore(weather_task, "weather", 4096, NULL, 5, NULL, 1);
+	xTaskCreatePinnedToCore(weather_task, "weather", 4096, NULL, 5, NULL, 0);
 }

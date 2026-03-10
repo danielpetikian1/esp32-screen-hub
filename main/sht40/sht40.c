@@ -155,5 +155,5 @@ static void sht40_task(void *arg) {
  */
 void sht40_task_start(i2c_master_dev_handle_t dev) {
 	// Pin task to core 1; adjust stack/priority as needed
-	xTaskCreatePinnedToCore(sht40_task, "sht40", 4096, (void *)dev, 5, NULL, 1);
+	xTaskCreatePinnedToCore(sht40_task, "sht40", 4096, (void *)dev, 5, NULL, 0);
 }

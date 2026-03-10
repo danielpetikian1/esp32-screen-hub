@@ -66,9 +66,9 @@ void port_i2c_service_start(void) {
 		port_q = xQueueCreate(8, sizeof(port_i2c_req_t));
 	}
 
-	/* Dedicated owner task pinned to core 1 (tune stack/priority as needed) */
+	/* Dedicated owner task pinned to core 0 (tune stack/priority as needed) */
 	xTaskCreatePinnedToCore(port_i2c_owner_task, "port_i2c_service", 4096, NULL,
-							6, NULL, 1);
+							6, NULL, 0);
 }
 
 QueueHandle_t port_i2c_service_queue(void) { return port_q; }

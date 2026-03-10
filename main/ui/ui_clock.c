@@ -34,7 +34,7 @@ static lv_obj_t *s_lbl_cpu;
 
 /* ---------- CPU usage ---------- */
 
-static TaskStatus_t s_tasks[20];
+static TaskStatus_t s_tasks[30];
 static uint32_t s_prev_idle = 0;
 static uint32_t s_prev_all = 0;
 
@@ -46,15 +46,14 @@ static uint32_t s_prev_all = 0;
  * correct on dual-core ESP32 where idle can exceed wall time.
  */
 static float get_total_cpu_usage(void) {
-	uint32_t num_tasks = uxTaskGetNumberOfTasks();
-	if (num_tasks > 20)
-		num_tasks = 20;
-
-	uxTaskGetSystemState(s_tasks, num_tasks, NULL);
+	UBaseType_t num_tasks = uxTaskGetSystemState(
+		s_tasks, sizeof(s_tasks) / sizeof(s_tasks[0]), NULL);
+	if (num_tasks == 0)
+		return 0.0f;
 
 	uint32_t idle_runtime = 0;
 	uint32_t all_runtime = 0;
-	for (uint32_t i = 0; i < num_tasks; i++) {
+	for (UBaseType_t i = 0; i < num_tasks; i++) {
 		all_runtime += s_tasks[i].ulRunTimeCounter;
 		if (strncmp(s_tasks[i].pcTaskName, "IDLE", 4) == 0)
 			idle_runtime += s_tasks[i].ulRunTimeCounter;

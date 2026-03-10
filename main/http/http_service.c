@@ -4,6 +4,14 @@
 #include "net_manager.h"
 #include <string.h>
 
+/* Number of concurrent HTTP worker tasks.  Each worker picks requests from
+ * the shared queue independently, allowing multiple in-flight connections.
+ * Capped at 2: the TLS handshake requires ~36 KB of scratch heap per
+ * connection; more than 2 simultaneous handshakes risks
+ * MBEDTLS_ERR_SSL_ALLOC_FAILED on the ESP32-S3 when other tasks are also making
+ * HTTP requests. */
+#define HTTP_SERVICE_NUM_WORKERS 2
+
 #include "esp_crt_bundle.h"
 #include "esp_err.h"
 #include "esp_http_client.h"
@@ -139,21 +147,22 @@ static http_resp_t do_get(const http_req_t *req) {
 }
 
 /**
- * @brief FreeRTOS owner task that performs HTTP requests on behalf of clients.
+ * @brief FreeRTOS worker task that performs HTTP requests on behalf of clients.
  *
- * The task:
- *  - Waits for IP connectivity (IP_READY_BIT)
+ * Multiple instances of this task run concurrently, each pulling requests
+ * from the shared queue independently.  Because do_get() creates its own
+ * esp_http_client handle on the stack there is no shared mutable state
+ * between workers, so concurrent execution is safe.
+ *
+ * Each worker:
+ *  - Waits for IP connectivity (IP_READY_BIT) before processing requests
  *  - Receives http_req_t messages from the shared HTTP request queue
- *  - Executes the requested transaction (currently GET)
- *  - Optionally captures response body into the caller-provided RX buffer
- *  - Sends an http_resp_t back on the caller's reply queue
+ *  - Executes the transaction and sends an http_resp_t to the caller's queue
  *
  * Notes:
- *  - All HTTP operations run in this single task to keep network usage
- *    serialized and simple.
- *  - Clients must keep rx_buf valid until the response is received.
+ *  - Callers must keep rx_buf valid until the matching response is received.
  */
-static void http_owner_task(void *arg) {
+static void http_worker_task(void *arg) {
 	/* Wait for network ready */
 	EventGroupHandle_t ev = net_manager_events();
 	xEventGroupWaitBits(ev, IP_READY_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
@@ -180,14 +189,19 @@ static void http_owner_task(void *arg) {
 /**
  * @brief Initialize the HTTP service.
  *
- * Creates the shared request queue (once) and starts the HTTP owner task.
+ * Creates the shared request queue (once) and starts HTTP_SERVICE_NUM_WORKERS
+ * worker tasks.  All workers pull from the same queue, allowing multiple
+ * requests to be in-flight concurrently.
  */
 void http_service_start(void) {
 	if (!s_http_q) {
-		s_http_q = xQueueCreate(8, sizeof(http_req_t));
+		s_http_q =
+			xQueueCreate(HTTP_SERVICE_NUM_WORKERS * 2, sizeof(http_req_t));
 	}
-	xTaskCreatePinnedToCore(http_owner_task, "http_service", 6144, NULL, 5,
-							NULL, 1);
+	for (int i = 0; i < HTTP_SERVICE_NUM_WORKERS; i++) {
+		xTaskCreatePinnedToCore(http_worker_task, "http_svc", 6144, NULL, 5,
+								NULL, 0);
+	}
 }
 
 /**

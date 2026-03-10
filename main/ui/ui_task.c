@@ -58,7 +58,7 @@ static void ui_task(void *arg) {
 		/* Clock screen extras */
 		ui_clock_update_cpu();
 
-		vTaskDelay(pdMS_TO_TICKS(150));
+		vTaskDelay(pdMS_TO_TICKS(300));
 	}
 }
 

@@ -103,18 +103,19 @@ static bool parse_finnhub_quote(const char *json, const char *symbol,
 /**
  * @brief FreeRTOS task that periodically fetches stock quotes from Finnhub.
  *
- * For each non-empty configured symbol the task:
- *  1. Builds the Finnhub /quote URL with the API key
- *  2. Submits the request to the shared HTTP service queue
- *  3. Waits for the response (up to 15 s)
- *  4. Parses the JSON body with cJSON
- *  5. Updates the shared snapshot under the mutex
+ * Each polling cycle:
+ *  1. Submits all configured symbol requests to the HTTP service at once
+ *  2. Collects all responses (in any order), matched back to symbols by
+ *     request_id
+ *  3. Parses each JSON body with cJSON and updates the shared snapshot
+ *  4. Sleeps until the next poll interval
  *
- * After all symbols have been fetched, the task sleeps for the configured
- * poll interval before starting the next cycle.
+ * Submitting all requests upfront lets the HTTP worker pool fetch them
+ * concurrently, so total cycle time is roughly max(per-request latency)
+ * rather than sum(per-request latency).
  *
  * Notes:
- *  - Requests are submitted one at a time (serialized by the HTTP owner task).
+ *  - Each request gets its own rx buffer so workers can fill them in parallel.
  *  - The UI always reads a consistent copy via stocks_get_snapshot().
  */
 static void stocks_task(void *arg) {
@@ -145,8 +146,11 @@ static void stocks_task(void *arg) {
 	}
 
 	QueueHandle_t http_q = http_service_queue();
-	QueueHandle_t reply_q = xQueueCreate(2, sizeof(http_resp_t));
-	static char rx[512]; /* Finnhub quote response is ~100 bytes */
+	/* Size the reply queue to hold all responses simultaneously. */
+	QueueHandle_t reply_q =
+		xQueueCreate(STOCKS_MAX_SYMBOLS, sizeof(http_resp_t));
+	/* One receive buffer per symbol so workers can write concurrently. */
+	static char rx[STOCKS_MAX_SYMBOLS][512];
 
 	const TickType_t period =
 		pdMS_TO_TICKS((uint32_t)CONFIG_FINNHUB_POLL_INTERVAL_SEC * 1000U);
@@ -154,33 +158,44 @@ static void stocks_task(void *arg) {
 	uint32_t rid = 0;
 
 	for (;;) {
+		uint32_t batch_start = rid + 1;
+
+		/* Phase 1: submit all requests up front so workers fetch in parallel.
+		 */
 		for (int i = 0; i < count; i++) {
-			char url[256];
-			snprintf(url, sizeof(url),
-					 "https://finnhub.io/api/v1/quote"
-					 "?symbol=%s&token=%s",
-					 symbols[i], CONFIG_FINNHUB_API_KEY);
+			rx[i][0] = '\0';
 
 			http_req_t req = {0};
 			req.method = HTTP_REQ_GET;
 			req.reply_queue = reply_q;
 			req.request_id = ++rid;
-			snprintf(req.url, sizeof(req.url), "%s", url);
-			req.rx_buf = rx;
-			req.rx_cap = sizeof(rx);
+			req.rx_buf = rx[i];
+			req.rx_cap = sizeof(rx[i]);
+			snprintf(req.url, sizeof(req.url),
+					 "https://finnhub.io/api/v1/quote?symbol=%s&token=%s",
+					 symbols[i], CONFIG_FINNHUB_API_KEY);
 
-			rx[0] = '\0';
 			ESP_LOGI(TAG, "fetch %s id=%" PRIu32, symbols[i], req.request_id);
 			xQueueSend(http_q, &req, portMAX_DELAY);
+		}
 
+		/* Phase 2: collect all responses (may arrive in any order). */
+		for (int n = 0; n < count; n++) {
 			http_resp_t resp;
 			if (xQueueReceive(reply_q, &resp, pdMS_TO_TICKS(15000)) != pdTRUE) {
-				ESP_LOGW(TAG, "%s: timeout", symbols[i]);
+				ESP_LOGW(TAG, "timeout waiting for response");
+				continue;
+			}
+
+			/* Map request_id back to the symbol index within this batch. */
+			int idx = (int)(resp.request_id - batch_start);
+			if (idx < 0 || idx >= count) {
+				ESP_LOGW(TAG, "stale response id=%" PRIu32, resp.request_id);
 				continue;
 			}
 
 			ESP_LOGI(TAG, "%s id=%" PRIu32 " err=%s http=%d rx=%u trunc=%d",
-					 symbols[i], resp.request_id, esp_err_to_name(resp.err),
+					 symbols[idx], resp.request_id, esp_err_to_name(resp.err),
 					 resp.http_status, (unsigned)resp.rx_len,
 					 (int)resp.truncated);
 
@@ -190,15 +205,15 @@ static void stocks_task(void *arg) {
 			}
 
 			stock_quote_t q = {0};
-			if (parse_finnhub_quote(rx, symbols[i], &q)) {
+			if (parse_finnhub_quote(rx[idx], symbols[idx], &q)) {
 				if (xSemaphoreTake(s_stocks_mu, pdMS_TO_TICKS(50)) == pdTRUE) {
-					s_stocks.quotes[i] = q;
+					s_stocks.quotes[idx] = q;
 					xSemaphoreGive(s_stocks_mu);
 				}
 				ESP_LOGI(TAG, "%s $%.2f d=%.2f dp=%.2f%%", q.symbol, q.price,
 						 q.change, q.change_pct);
 			} else {
-				ESP_LOGW(TAG, "%s: parse failed: %s", symbols[i], rx);
+				ESP_LOGW(TAG, "%s: parse failed: %s", symbols[idx], rx[idx]);
 			}
 		}
 
@@ -216,5 +231,5 @@ void stocks_task_start(void) {
 
 	memset(&s_stocks, 0, sizeof(s_stocks));
 
-	xTaskCreatePinnedToCore(stocks_task, "stocks", 4096, NULL, 5, NULL, 1);
+	xTaskCreatePinnedToCore(stocks_task, "stocks", 4096, NULL, 5, NULL, 0);
 }
