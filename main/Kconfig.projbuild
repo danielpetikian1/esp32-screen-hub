@@ -53,3 +53,62 @@ menu "External I2C Bus"
     endchoice
 
 endmenu
+
+menu "Finnhub Stock Ticker Configuration"
+
+    config FINNHUB_API_KEY
+        string "Finnhub API Key"
+        default ""
+        help
+            Your Finnhub API key. Get a free key at https://finnhub.io.
+            Example: "d1a2b3c4d5e6f7g8h9i0"
+
+    config FINNHUB_POLL_INTERVAL_SEC
+        int "Poll interval (seconds)"
+        default 60
+        range 15 3600
+        help
+            How often to fetch updated stock quotes from Finnhub.
+            Minimum 15 seconds. Free tier allows 60 calls/minute.
+
+    menu "Stock Symbols"
+
+        config FINNHUB_SYMBOL_1
+            string "Symbol 1"
+            default "DIA"
+            help
+                First stock symbol to display (e.g. AAPL, TSLA, MSFT).
+
+        config FINNHUB_SYMBOL_2
+            string "Symbol 2"
+            default "SPY"
+            help
+                Second stock symbol. Leave blank to disable.
+
+        config FINNHUB_SYMBOL_3
+            string "Symbol 3"
+            default "QQQ"
+            help
+                Third stock symbol. Leave blank to disable.
+
+        config FINNHUB_SYMBOL_4
+            string "Symbol 4"
+            default ""
+            help
+                Fourth stock symbol. Leave blank to disable.
+
+        config FINNHUB_SYMBOL_5
+            string "Symbol 5"
+            default ""
+            help
+                Fifth stock symbol. Leave blank to disable.
+
+        config FINNHUB_SYMBOL_6
+            string "Symbol 6"
+            default ""
+            help
+                Sixth stock symbol. Leave blank to disable.
+
+    endmenu  # Stock Symbols
+
+endmenu  # Finnhub Stock Ticker Configuration

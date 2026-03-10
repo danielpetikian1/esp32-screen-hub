@@ -19,6 +19,7 @@
 #include "esp_err.h"
 #include "lvgl.h"
 #include "port_i2c_readings.h" // for readings_snapshot_t
+#include "stocks_task.h"	   // for stocks_snapshot_t
 #include "weather_task.h"	   // for weather_current_t
 #include <stdbool.h>
 
@@ -89,6 +90,16 @@ void ui_set_temp_unit(ui_temp_unit_t unit);
  * @param w Pointer to the latest weather snapshot.
  */
 void ui_update_weather(const weather_current_t *w);
+
+/**
+ * @brief Update the stocks screen with the latest quote data.
+ *
+ * Safe to call periodically (e.g., every 500 ms).
+ * Shows "--" placeholders for quotes not yet fetched.
+ *
+ * @param s Pointer to the latest stocks snapshot.
+ */
+void ui_update_stocks(const stocks_snapshot_t *s);
 
 #ifdef __cplusplus
 }

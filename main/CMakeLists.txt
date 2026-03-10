@@ -4,6 +4,7 @@ idf_component_register(
         "net/net_manager.c"
         "http/http_service.c"
         "weather/weather_task.c"
+        "stocks/stocks_task.c"
         "sht40/sht40.c"
         "i2c_utils/i2c_utils.c"
         "power_aw9523/power_aw9523.c"
@@ -17,6 +18,7 @@ idf_component_register(
         "ui/ui_clock.c"
         "ui/ui_stats.c"
         "ui/ui_weather.c"
+        "ui/ui_stocks.c"
         "ui/ui_task.c"
         "ui/assets/fa_microchip_16.c"
     INCLUDE_DIRS
@@ -31,6 +33,7 @@ idf_component_register(
         "port_i2c"
         "sgp30"
         "sntp"
+        "stocks"
         "ui"
     REQUIRES
         esp_wifi
@@ -38,6 +41,7 @@ idf_component_register(
         esp_netif
         nvs_flash
         esp_http_client
+        mbedtls
         driver
         esp_driver_gpio
         m5stack_core_s3

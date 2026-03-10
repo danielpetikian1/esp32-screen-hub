@@ -1,158 +1,122 @@
 # ESP32 Utility Device
 
-A modular ESP32-based utility device built with **ESP-IDF** and **LVGL**.  
-The system aggregates environmental sensor data, weather information, and is designed to expand into additional features like stock tracking and smart home integration.
+A modular ESP32-based utility dashboard built with **ESP-IDF** and **LVGL**, running on the **M5Stack Core S3**. Aggregates environmental sensor data, weather, and live stock quotes into a horizontally swipeable touchscreen UI.
 
 ---
 
-## 📌 Overview
+## Screens
 
-This project runs on an ESP32 (currently targeting M5Stack S3 hardware) and provides:
+Swipe left/right to navigate between tiles:
 
-- Environmental sensor readings over I2C
-- Weather data via HTTP API
-- On-device graphical UI using LVGL
-- Modular, task-based service architecture
-
-The system is structured with clear separation of concerns:
-
-- Sensor drivers are isolated
-- Shared readings are centrally managed
-- Network operations are handled by a dedicated HTTP service
-- UI updates are synchronized using LVGL display locking
-- Inter-task communication is handled via FreeRTOS queues
+| Tile | Screen | Description |
+|------|--------|-------------|
+| 0 | **Clock** | Large time display with CPU usage gauge and date |
+| 1 | **Stats** | Indoor sensor dashboard — temperature, humidity, CO₂, TVOC |
+| 2 | **Weather** | Outdoor conditions — temperature, humidity, wind, precipitation |
+| 3 | **Stocks** | Live stock quotes — price, dollar change, percent change |
 
 ---
 
-## ✅ What Has Been Implemented
+## Hardware
 
-### I2C Sensor Modules
-- Dedicated I2C service task that owns the bus
-- SHT40 temperature & humidity integration
-- SGP30 air quality integration (eCO2 / TVOC)
-- CRC validation and proper timing handling
-- Thread-safe updates to shared readings
-
-### HTTP Service
-- Dedicated HTTP service task
-- Request/response queue architecture
-- Periodic background refresh support
-- Safe inter-task communication
-
-### Weather Module
-- Periodic polling of Open-Meteo API
-- Configurable location via Kconfig
-- JSON parsing and structured data storage
-- Integration into shared readings snapshot
-
-### UI (LVGL)
-- LVGL integration with ESP-IDF
-- Display initialization and brightness control
-- Thread-safe display locking
-- Modular UI components (sensor cards)
-- Dynamic label updates
-- Custom layout tuning
-- Style adjustments (text color, font sizing, scroll control)
-
-### Shared Readings API
-- Central snapshot structure
-- Mutex-protected updates
-- Clean public getter interface
-- Timestamp support
+- **M5Stack Core S3** (ESP32-S3, 320×240 touchscreen)
+- External I2C sensors via Grove port (Port A/B/C, configurable in menuconfig):
+  - **SHT40** — temperature & humidity
+  - **SGP30** — CO₂ & TVOC air quality
 
 ---
 
-## 🚧 What Has Not Been Implemented Yet
+## Configuration
 
-### Rust Module Migration
-Planned migration of selected modules from C to Rust for:
-- Improved memory safety
-- Better ownership semantics
-- Stronger concurrency guarantees
-- Safer hardware abstraction
+Run `idf.py menuconfig` and fill in:
 
-This is currently in the design phase.
+**Wi-Fi**
+- `WIFI_SSID` / `WIFI_PASSWORD`
 
----
+**Location** (for weather)
+- `LOCATION_LATITUDE` / `LOCATION_LONGITUDE` (decimal degrees)
 
-### Stock Tracker Integration
-Planned features:
-- Stock market API integration
-- Configurable tracked symbols
-- Periodic updates
-- UI display module
-- Potential MQTT or mobile configuration support
+**Time**
+- `TIMEZONE` — POSIX timezone string, e.g. `PST8PDT,M3.2.0,M11.1.0`
 
----
+**External I2C Bus**
+- Choose the Grove port your sensors are on (Port A, B, or C)
 
-### UI Improvements
-Planned enhancements:
-- Improved typography and spacing
-- Cleaner visual hierarchy
-- Theme consistency
-- Card layout refinement
-- Screen transitions and animations
-- Reduced visual graininess
-- Dynamic unit switching (F/C)
+**Finnhub Stock Ticker**
+- `FINNHUB_API_KEY` — get a free key at [finnhub.io](https://finnhub.io)
+- `FINNHUB_POLL_INTERVAL_SEC` — poll interval in seconds (default 60, min 15)
+- `FINNHUB_SYMBOL_1` through `FINNHUB_SYMBOL_6` — tickers to display (e.g. `AAPL`, `SPY`, `QQQ`); leave blank to disable
 
 ---
 
-## 🏗 Architecture Overview
+## Build & Flash
 
-The system follows a modular, task-based architecture:
+```bash
+idf.py set-target esp32s3
+idf.py menuconfig      # fill in Wi-Fi, location, API keys
+idf.py build flash monitor
+```
 
-- **I2C Service Task**
-  - Owns the I2C bus
-  - Processes queued sensor requests
-
-- **Sensor Tasks**
-  - Periodically request readings
-  - Update shared snapshot
-
-- **HTTP Service Task**
-  - Handles outbound network requests
-  - Implements request/reply pattern via queues
-
-- **Weather Task**
-  - Periodic API polling
-  - Updates shared readings
-
-- **UI Loop**
-  - Reads shared snapshot
-  - Updates LVGL components
-  - Uses display locking to ensure thread safety
+Requires [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/) v5.x.
 
 ---
 
-## 🎯 Design Goals
+## Architecture
 
-- Clean module boundaries
-- No hidden global state
-- Deterministic sensor timing
-- Safe inter-task communication
-- Scalable service-based architecture
-- Expandable feature set
+The system follows a modular, task-based architecture with clear separation of concerns. All inter-task communication uses FreeRTOS queues; shared data is mutex-protected.
+
+```
+app_main
+├── net_manager          Wi-Fi connection (core 1)
+├── sntp_service         Time sync
+├── http_service         HTTP/HTTPS owner task — serialises all network requests (core 1)
+├── weather_task         Open-Meteo polling every 3 min (core 1)
+├── stocks_task          Finnhub quote polling on configurable interval (core 1)
+├── port_i2c_service     I2C owner task — serialises bus access (core 1)
+├── sht40_task           Temperature & humidity polling (core 1)
+├── sgp30_task           CO₂ & TVOC polling (core 1)
+└── ui_task              150ms LVGL refresh loop (core 0)
+```
+
+### Key patterns
+
+- **Owner task pattern** — HTTP and I2C each have a single owner task. Clients submit requests via a queue and receive responses on a private reply queue. Prevents concurrent bus/network conflicts.
+- **Snapshot pattern** — Each service exposes a `*_get_snapshot()` function that returns a mutex-protected copy of the latest data. The UI holds no pointers into task memory.
+- **Fixed-size buffers** — All HTTP response buffers are stack-allocated by the requester. No heap allocation in steady state.
+- **Core separation** — UI runs on core 0; Wi-Fi stack and all sensors/network tasks run on core 1.
 
 ---
 
-## 🚀 Future Vision
+## Project Structure
 
-This device is intended to evolve into:
-
-- A customizable smart desktop dashboard
-- A smart home data endpoint
-- A configurable personal information display
-- A hybrid Rust + C embedded platform
+```
+main/
+├── app_main.c              # System init and task startup sequence
+├── Kconfig.projbuild       # User-facing configuration (Wi-Fi, location, stocks, etc.)
+├── http/                   # Shared HTTP owner task (HTTP + HTTPS via mbedTLS)
+├── net/                    # Wi-Fi manager
+├── sntp/                   # SNTP time sync service
+├── weather/                # Open-Meteo polling task + snapshot
+├── stocks/                 # Finnhub stock quote polling task + snapshot
+├── port_i2c/               # I2C owner task, sensor data store
+├── sht40/                  # SHT40 temperature & humidity driver task
+├── sgp30/                  # SGP30 CO₂ & TVOC driver task
+├── common/                 # App event bits, CRC utilities
+└── ui/
+    ├── ui.c                # Tileview init, temperature unit state
+    ├── ui_clock.c          # Tile 0: clock + CPU gauge
+    ├── ui_stats.c          # Tile 1: indoor sensor cards
+    ├── ui_weather.c        # Tile 2: outdoor weather
+    ├── ui_stocks.c         # Tile 3: stock quotes
+    └── ui_task.c           # 150ms refresh loop, pinned to core 0
+```
 
 ---
 
-## 📍 Current Status
+## Design Goals
 
-The system is stable and functional for:
-
-- Environmental sensor readings
-- Weather updates
-- Basic UI display
-
-Core architecture is complete.  
-Next phase focuses on feature expansion and UI refinement.
+- Clean module boundaries with no hidden global state
+- Deterministic sensor timing via the I2C owner pattern
+- Safe inter-task communication (queues + mutexes, no shared mutable globals)
+- Fixed-memory-footprint steady state (no heap fragmentation)
+- Scalable, service-based architecture for easy feature addition

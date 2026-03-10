@@ -16,6 +16,7 @@
 #include "sgp30.h"
 #include "sht40.h"
 #include "sntp.h"
+#include "stocks_task.h"
 #include "ui.h"
 #include "ui_task.h"
 #include "weather_task.h"
@@ -98,6 +99,7 @@ void app_main(void) {
 
 	http_service_start();
 	weather_task_start();
+	stocks_task_start();
 
 	/* Start the (single) external I2C owner/service */
 	port_i2c_service_start();

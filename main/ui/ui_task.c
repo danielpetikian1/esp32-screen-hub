@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "port_i2c_readings.h"
 #include "sntp.h"
+#include "stocks_task.h"
 #include "ui.h"
 #include "ui_screens.h"
 #include "weather_task.h"
@@ -34,6 +35,7 @@ static void ui_task(void *arg) {
 
 	readings_snapshot_t snapshot = {0};
 	weather_current_t weather = {0};
+	stocks_snapshot_t stocks = {0};
 	char time_str[9]; /* "HH:MM:SS\0" */
 
 	for (;;) {
@@ -48,6 +50,10 @@ static void ui_task(void *arg) {
 		/* Outdoor weather: fetched by weather_task every 3 minutes */
 		weather_get_snapshot(&weather);
 		ui_update_weather(&weather);
+
+		/* Stock quotes: fetched by stocks_task on configured interval */
+		stocks_get_snapshot(&stocks);
+		ui_update_stocks(&stocks);
 
 		/* Clock screen extras */
 		ui_clock_update_cpu();

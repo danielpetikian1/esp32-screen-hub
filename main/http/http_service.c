@@ -4,6 +4,7 @@
 #include "net_manager.h"
 #include <string.h>
 
+#include "esp_crt_bundle.h"
 #include "esp_err.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
@@ -109,6 +110,7 @@ static http_resp_t do_get(const http_req_t *req) {
 		.event_handler = http_event_handler,
 		.user_data = &rx,
 		.timeout_ms = 8000,
+		.crt_bundle_attach = esp_crt_bundle_attach, /* HTTPS support */
 	};
 
 	esp_http_client_handle_t client = esp_http_client_init(&config);

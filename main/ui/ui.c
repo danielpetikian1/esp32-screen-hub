@@ -46,12 +46,16 @@ esp_err_t ui_init(lv_disp_t *disp) {
 	/* Tile 1 – stats: swipe both directions */
 	lv_obj_t *tile_stats =
 		lv_tileview_add_tile(tv, 1, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
-	/* Tile 2 – weather: only swipe left (toward stats) */
-	lv_obj_t *tile_weather = lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT);
+	/* Tile 2 – weather: swipe both directions */
+	lv_obj_t *tile_weather =
+		lv_tileview_add_tile(tv, 2, 0, LV_DIR_LEFT | LV_DIR_RIGHT);
+	/* Tile 3 – stocks: only swipe left (toward weather) */
+	lv_obj_t *tile_stocks = lv_tileview_add_tile(tv, 3, 0, LV_DIR_LEFT);
 
 	ui_clock_build(tile_clock);
 	ui_stats_build(tile_stats);
 	ui_weather_build(tile_weather);
+	ui_stocks_build(tile_stocks);
 
 	bsp_display_unlock();
 

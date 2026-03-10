@@ -33,6 +33,9 @@ void ui_stats_build(lv_obj_t *tile);
 /** Build the outdoor weather tile (icon | temperature | stats columns). */
 void ui_weather_build(lv_obj_t *tile);
 
+/** Build the stocks tile (header + up to 6 quote rows). */
+void ui_stocks_build(lv_obj_t *tile);
+
 /** @} */
 
 /**
