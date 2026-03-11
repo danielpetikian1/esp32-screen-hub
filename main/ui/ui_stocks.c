@@ -159,8 +159,6 @@ void ui_update_stocks(const stocks_snapshot_t *s) {
 
 	char buf[24];
 
-	bsp_display_lock(0);
-
 	for (int i = 0; i < STOCKS_MAX_SYMBOLS; i++) {
 		if (i >= s->count) {
 			lv_label_set_text(s_stocks.lbl_symbol[i], "");
@@ -204,6 +202,4 @@ void ui_update_stocks(const stocks_snapshot_t *s) {
 										LV_PART_MAIN);
 		}
 	}
-
-	bsp_display_unlock();
 }

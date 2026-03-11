@@ -75,8 +75,6 @@ void ui_set_time_str(const char *hhmmss) {
 	if (!hhmmss)
 		return;
 
-	bsp_display_lock(0);
 	ui_stats_set_time(hhmmss);
 	ui_clock_set_time(hhmmss);
-	bsp_display_unlock();
 }

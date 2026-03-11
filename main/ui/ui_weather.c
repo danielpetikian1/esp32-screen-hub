@@ -233,8 +233,6 @@ void ui_update_weather(const weather_current_t *w) {
 
 	char buf[32];
 
-	bsp_display_lock(0);
-
 	if (!w->valid) {
 		/* No data yet — show placeholders and a neutral grey icon */
 		lv_label_set_text(s_weather.lbl_temp, "--");
@@ -309,6 +307,4 @@ void ui_update_weather(const weather_current_t *w) {
 		snprintf(buf, sizeof(buf), "%.1f mm", w->precipitation_mm);
 		lv_label_set_text(s_weather.lbl_precip_val, buf);
 	}
-
-	bsp_display_unlock();
 }

@@ -177,8 +177,6 @@ void ui_update_readings(const readings_snapshot_t *s) {
 
 	char buf[32];
 
-	bsp_display_lock(0);
-
 	/* Temperature: convert if Fahrenheit mode is active */
 	float temp = (ui_get_temp_unit() == UI_TEMP_F)
 					 ? (s->temp_c * 9.0f / 5.0f + 32.0f)
@@ -213,6 +211,4 @@ void ui_update_readings(const readings_snapshot_t *s) {
 	else
 		tvoc_color = lv_color_hex(CLR_RED);
 	lv_obj_set_style_text_color(s_stats.lbl_tvoc_val, tvoc_color, LV_PART_MAIN);
-
-	bsp_display_unlock();
 }

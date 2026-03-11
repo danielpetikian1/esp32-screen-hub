@@ -113,7 +113,10 @@ Each data-producing task exposes a `*_get_snapshot()` function that returns a mu
 ```
 [http worker] → parse JSON → mutex lock → update snapshot → mutex unlock
                                                                    ↓
-                                          [ui_update] → mutex lock → copy snapshot → update LVGL labels
+                              [ui_update] → copy all snapshots (no lock)
+                                          → bsp_display_lock() once
+                                          → update all LVGL labels
+                                          → bsp_display_unlock()
 ```
 
 ### I2C owner pattern
@@ -143,7 +146,7 @@ main/
     ├── ui_stats.c          # Tile 1: indoor sensor cards
     ├── ui_weather.c        # Tile 2: outdoor weather
     ├── ui_stocks.c         # Tile 3: stock quotes
-    └── ui_task.c           # 500ms refresh loop, pinned to core 0 pri 8
+    └── ui_task.c           # 300ms refresh loop, pinned to core 0 pri 5
 ```
 
 ---
@@ -152,7 +155,7 @@ main/
 
 - **Core isolation** — LVGL renderer on core 1, all I/O and sensor work on core 0; no contention between rendering and network
 - **Concurrent HTTP** — 4-worker pool with shared queue enables parallel in-flight TLS connections
-- **PSRAM-backed TLS** — mbedTLS allocates from PSRAM, keeping internal SRAM free for WiFi and the kernel
+- **PSRAM-backed TLS** — mbedTLS allocates from PSRAM; general malloc overflows to PSRAM, keeping internal DMA-capable SRAM free for the display buffer and WiFi
 - **Batch fetching** — all stock requests submitted simultaneously; responses collected in any order by request ID
 - **Snapshot pattern** — producers and the UI communicate through mutex-protected value copies, not shared pointers
 - **Owner task pattern** — HTTP and I2C each serialised through a single owner task + queue; no manual locking in clients

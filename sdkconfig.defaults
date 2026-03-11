@@ -16,19 +16,73 @@ CONFIG_FINNHUB_POLL_INTERVAL_SEC=60
 CONFIG_FINNHUB_SYMBOL_1="DIA"
 CONFIG_FINNHUB_SYMBOL_2="SPY"
 CONFIG_FINNHUB_SYMBOL_3="QQQ"
-CONFIG_FINNHUB_SYMBOL_4=""
-CONFIG_FINNHUB_SYMBOL_5=""
-CONFIG_FINNHUB_SYMBOL_6=""
+CONFIG_FINNHUB_SYMBOL_4="GOOG"
+CONFIG_FINNHUB_SYMBOL_5="AAPL"
+CONFIG_FINNHUB_SYMBOL_6="NVDA"
 
-# ── mbedTLS – dynamic I/O buffers reduce per-connection heap from ~20 KB to
-#    only what is needed during active data transfer. Allocate from PSRAM so
-#    concurrent TLS sessions don't exhaust internal SRAM.
+# ── Flash size ────────────────────────────────────────────────────────────────
+# M5Stack Core S3 has 16 MB flash
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16m"
+
+# ── Partition table ───────────────────────────────────────────────────────────
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# ── Task watchdog ─────────────────────────────────────────────────────────────
+# ECDH key exchange (P-256) takes 8–15 s on ESP32-S3 even with hardware MPI.
+# 5 s (default) is too short; 30 s gives all workers room to finish handshakes.
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
+
+# ── Performance ───────────────────────────────────────────────────────────────
+
+# CPU at full speed
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+
+# Flash: QIO at 80 MHz (must match PSRAM clock for MSPI timing compatibility)
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+# CONFIG_ESPTOOLPY_FLASHMODE_DIO is not set
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+# CONFIG_ESPTOOLPY_FLASHFREQ_120M is not set
+CONFIG_ESPTOOLPY_FLASHFREQ="80m"
+CONFIG_ESPTOOLPY_FLASHMODE="qio"
+
+# ── PSRAM ─────────────────────────────────────────────────────────────────────
+# M5Stack Core S3 has 8 MB quad PSRAM.
+# SPIRAM_USE_MALLOC lets general malloc() overflow to PSRAM when internal RAM
+# is tight, which keeps enough internal DMA-capable RAM free for the 64 KB
+# LVGL display buffer (which must stay in internal RAM for SPI DMA).
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_QUAD=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_SPEED_80M=y
+# CONFIG_SPIRAM_SPEED_40M is not set
+CONFIG_SPIRAM_SPEED=80
+
+# ── mbedTLS ───────────────────────────────────────────────────────────────────
+# Dynamic I/O buffers reduce per-connection heap from ~20 KB to only what is
+# needed during active data transfer. Allocate from PSRAM so concurrent TLS
+# sessions don't exhaust internal SRAM.
 CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
 CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=16384
 CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 
-# ── Task watchdog ──────────────────────────────────────────────────────────────
-# ECDH key exchange (P-256) takes 8–15 s on ESP32-S3 even with hardware MPI.
-# 5 s (default) is too short; 30 s gives all workers room to finish handshakes.
-CONFIG_ESP_TASK_WDT_TIMEOUT_S=30
+# ── FreeRTOS ──────────────────────────────────────────────────────────────────
+# TRACE_FACILITY enables uxTaskGetSystemState() (task list)
+# GENERATE_RUN_TIME_STATS populates ulRunTimeCounter per task (needed for CPU%)
+# RUN_TIME_STATS_USING_ESP_TIMER uses the esp_timer 1 MHz clock as the source
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
+CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y
+
+# ── LVGL ──────────────────────────────────────────────────────────────────────
+CONFIG_LV_MEM_SIZE_KILOBYTES=128
+
+# ILI9342C on Core S3 is big-endian RGB565; swap bytes so LVGL output matches
+CONFIG_LV_COLOR_16_SWAP=y
+
+CONFIG_LV_FONT_MONTSERRAT_16=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_40=y

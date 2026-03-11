@@ -15,6 +15,7 @@
  */
 
 #include "ui_task.h"
+#include "bsp/m5stack_core_s3.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "port_i2c_readings.h"
@@ -39,26 +40,26 @@ static void ui_task(void *arg) {
 	char time_str[9]; /* "HH:MM:SS\0" */
 
 	for (;;) {
-		/* Time: formatted locally from the SNTP-synced RTC */
+		/* Gather all data before acquiring the lock — no LVGL calls here.
+		 * ui_clock_sample_cpu() calls uxTaskGetSystemState which briefly
+		 * suspends the scheduler; keeping it outside the lock lets the
+		 * LVGL renderer run freely during the measurement. */
 		sntp_service_format_local_time("%H:%M:%S", time_str, sizeof(time_str));
-		ui_set_time_str(time_str);
-
-		/* Indoor sensors: temp, humidity, CO2, TVOC */
 		readings_get_snapshot(&snapshot);
-		ui_update_readings(&snapshot);
-
-		/* Outdoor weather: fetched by weather_task every 3 minutes */
 		weather_get_snapshot(&weather);
-		ui_update_weather(&weather);
-
-		/* Stock quotes: fetched by stocks_task on configured interval */
 		stocks_get_snapshot(&stocks);
+		float cpu_pct = ui_clock_sample_cpu();
+
+		/* Single lock for all LVGL writes. */
+		bsp_display_lock(0);
+		ui_set_time_str(time_str);
+		ui_update_readings(&snapshot);
+		ui_update_weather(&weather);
 		ui_update_stocks(&stocks);
+		ui_clock_update_cpu(cpu_pct);
+		bsp_display_unlock();
 
-		/* Clock screen extras */
-		ui_clock_update_cpu();
-
-		vTaskDelay(pdMS_TO_TICKS(300));
+		vTaskDelay(pdMS_TO_TICKS(100));
 	}
 }
 

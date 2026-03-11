@@ -111,7 +111,22 @@ void app_main(void) {
 	/* ---------------------------------------------------------------------- */
 	/* UI init + loop */
 	/* ---------------------------------------------------------------------- */
-	lv_disp_t *disp = bsp_display_start();
+	/* Use a 20-line DMA buffer (320×20×2 = 12.8 KB) instead of the default
+	 * 50-line (64 KB). WiFi DMA descriptors consume most of the internal
+	 * DMA-capable SRAM before we reach this point; 12.8 KB fits comfortably.
+	 * Rendering is marginally slower per flush but still smooth at 300 ms
+	 * update intervals. */
+	const bsp_display_cfg_t disp_cfg = {
+		.lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
+		.buffer_size = BSP_LCD_H_RES * 20,
+		.double_buffer = BSP_LCD_DRAW_BUFF_DOUBLE,
+		.flags =
+			{
+				.buff_dma = true,
+				.buff_spiram = false,
+			},
+	};
+	lv_disp_t *disp = bsp_display_start_with_config(&disp_cfg);
 	assert(disp);
 	bsp_display_brightness_set(100);
 

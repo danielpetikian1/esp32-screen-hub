@@ -137,9 +137,9 @@ void ui_clock_set_time(const char *hhmmss) {
  * The date is read from the system RTC (set by SNTP) so no extra parameter
  * is needed — it updates automatically once time is synchronised.
  */
-void ui_clock_update_cpu(void) {
-	float cpu = get_total_cpu_usage();
+float ui_clock_sample_cpu(void) { return get_total_cpu_usage(); }
 
+void ui_clock_update_cpu(float cpu_pct) {
 	/* Format date from system time: "Mon Mar 09" */
 	char date_buf[20];
 	struct tm timeinfo = {0};
@@ -148,10 +148,8 @@ void ui_clock_update_cpu(void) {
 	strftime(date_buf, sizeof(date_buf), "%a %b %d", &timeinfo);
 
 	char cpu_buf[16];
-	snprintf(cpu_buf, sizeof(cpu_buf), "CPU: %.1f%%", cpu);
+	snprintf(cpu_buf, sizeof(cpu_buf), "CPU: %.1f%%", cpu_pct);
 
-	bsp_display_lock(0);
 	lv_label_set_text(s_lbl_date, date_buf);
 	lv_label_set_text(s_lbl_cpu, cpu_buf);
-	bsp_display_unlock();
 }
